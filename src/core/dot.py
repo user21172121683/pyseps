@@ -99,3 +99,53 @@ class Dot(ABC):
         fill: int = 0,
     ):
         pass
+
+
+class RoundDot(Dot):
+    """Simple round dot."""
+
+    def _draw_shape(
+        self,
+        canvas: ImageDraw,
+        *,
+        center: tuple,
+        angle: float = 0.0,
+        size: float,
+        intensity: float = 1.0,
+        fill: int = 0,
+    ):
+        cx, cy = center
+        r = (size * intensity) / 2
+        bbox = [cx - r, cy - r, cx + r, cy + r]
+        canvas.ellipse(bbox, fill=fill)
+
+
+class SquareDot(Dot):
+    """Simple square dot."""
+
+    def _draw_shape(
+        self,
+        canvas: ImageDraw,
+        *,
+        center: tuple,
+        angle: float = 0.0,
+        size: float,
+        intensity: float = 1.0,
+        fill: int = 0,
+    ):
+        cx, cy = center
+        half = (size * intensity) / 2
+
+        # Define corners of an unrotated square
+        corners = [
+            (cx - half, cy - half),
+            (cx + half, cy - half),
+            (cx + half, cy + half),
+            (cx - half, cy + half),
+        ]
+
+        # Rotate if needed
+        if angle != 0:
+            corners = self._rotate_shape(corners, center, angle)
+
+        canvas.polygon(corners, fill=fill)
