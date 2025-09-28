@@ -48,7 +48,9 @@ class Halftone(ABC):
         self.canvas = ImageDraw.Draw(self.halftone)
 
     def save(self, filename: str):
-        self.halftone.save(filename, dpi=(self.spec.dpi, self.spec.dpi))
+        self.halftone.save(
+            filename + ".tiff", compression="group4", dpi=(self.spec.dpi, self.spec.dpi)
+        )
 
     def generate(self) -> Image:
         if self.spec.modulate:
