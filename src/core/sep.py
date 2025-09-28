@@ -78,3 +78,32 @@ class SimProcessSep(Sep):
             separations[name] = Image.fromarray(mask, mode="L")
 
         self.separations = separations
+
+
+class SpotSep(Sep):
+    def __init__(
+        self,
+        image: Image,
+        spot_colors: dict[str, tuple[int, int, int]],
+        threshold: int = 30,
+    ):
+        super().__init__(image)
+        self.spot_colors = spot_colors
+        self.threshold = threshold
+
+    def split(self):
+        """Separate image into spot color channels based on color similarity (within threshold)."""
+        rgb_image = self._ensure_mode("RGB")
+        img_array = np.array(rgb_image).astype(np.int16)
+
+        separations = {}
+
+        for name, color in self.spot_colors.items():
+            color_array = np.array(color).reshape((1, 1, 3))
+            diff = np.linalg.norm(img_array - color_array, axis=2)
+
+            # Generate a binary mask where pixels within threshold are white (255), others are black (0)
+            mask = (diff <= self.threshold).astype(np.uint8) * 255
+            separations[name] = Image.fromarray(mask, mode="L")
+
+        self.separations = separations
