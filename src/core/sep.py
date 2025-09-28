@@ -1,11 +1,19 @@
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from PIL import Image, ImageOps
 import numpy as np
 
 
+@dataclass
+class SepSpec:
+    tones: dict[str, tuple[int, int, int]]
+    threshold: int = 30
+
+
 class Sep(ABC):
-    def __init__(self, image: Image):
+    def __init__(self, image: Image, spec: SepSpec):
         self.image = image
+        self.spec = spec
         self.separations = {}
 
     def _ensure_mode(self, fmt):
@@ -52,10 +60,6 @@ class LSep(Sep):
 
 
 class SimProcessSep(Sep):
-    def __init__(self, image: Image, tones: dict[str, tuple[int, int, int]]):
-        super().__init__(image)
-        self.tones = tones
-
     def split(self):
         """Simulate spot color separation using color distance."""
 
@@ -65,7 +69,7 @@ class SimProcessSep(Sep):
 
         separations = {}
 
-        for name, tone_rgb in self.tones.items():
+        for name, tone_rgb in self.spec.tones.items():
             # Calculate Euclidean distance to the tone color
             tone_array = np.array(tone_rgb).astype(np.float32).reshape((1, 1, 3))
             dist = np.linalg.norm(img_array - tone_array, axis=2)
@@ -81,16 +85,6 @@ class SimProcessSep(Sep):
 
 
 class SpotSep(Sep):
-    def __init__(
-        self,
-        image: Image,
-        spot_colors: dict[str, tuple[int, int, int]],
-        threshold: int = 30,
-    ):
-        super().__init__(image)
-        self.spot_colors = spot_colors
-        self.threshold = threshold
-
     def split(self):
         """Separate image into spot color channels based on color similarity (within threshold)."""
         rgb_image = self._ensure_mode("RGB")
@@ -98,12 +92,12 @@ class SpotSep(Sep):
 
         separations = {}
 
-        for name, color in self.spot_colors.items():
+        for name, color in self.spec.tones.items():
             color_array = np.array(color).reshape((1, 1, 3))
             diff = np.linalg.norm(img_array - color_array, axis=2)
 
             # Generate a binary mask where pixels within threshold are white (255), others are black (0)
-            mask = (diff <= self.threshold).astype(np.uint8) * 255
+            mask = (diff <= self.spec.threshold).astype(np.uint8) * 255
             separations[name] = Image.fromarray(mask, mode="L")
 
         self.separations = separations
