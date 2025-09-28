@@ -19,6 +19,7 @@ class HalftoneSpec:
     angle: float = 0.0
     modulate: bool = True
     hardmix: bool = False
+    threshold: int = 127
 
 
 class Halftone(ABC):
@@ -220,3 +221,18 @@ class DitherHalftone(Halftone):
                     x = (i + 0.5) * spacing
                     y = (j + 0.5) * spacing
                     yield (x, y)
+
+
+class ThresholdHalftone(Halftone):
+    """Threshold-based halftone."""
+
+    def _iter_grid_points(self) -> Iterator[tuple[float, float]]:
+        grayscale = self._resized_image.convert("L")
+        pixels = np.array(grayscale)
+
+        height, width = pixels.shape
+
+        for y in range(height):
+            for x in range(width):
+                if pixels[y, x] > self.spec.threshold:
+                    yield float(x), float(y)
