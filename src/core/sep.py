@@ -8,6 +8,7 @@ import numpy as np
 class SepSpec:
     tones: dict[str, tuple[int, int, int]]
     threshold: int = 30
+    substrate: tuple = (255, 255, 255)
 
 
 class Sep(ABC):
@@ -61,24 +62,43 @@ class LSep(Sep):
 
 class SimProcessSep(Sep):
     def split(self):
-        """Simulate spot color separation using color distance."""
+        """Simulate spot color separation using color distance,
+        optionally accounting for a substrate color."""
 
         # Ensure image is RGB
         rgb_image = self._ensure_mode("RGB")
         img_array = np.array(rgb_image).astype(np.float32)  # shape: (H, W, 3)
 
+        # Optional substrate color
+        if self.spec.substrate is not None:
+            substrate_array = (
+                np.array(self.spec.substrate).astype(np.float32).reshape((1, 1, 3))
+            )
+            substrate_dist = np.linalg.norm(img_array - substrate_array, axis=2)
+            substrate_dist = substrate_dist / np.sqrt(
+                3 * (255**2)
+            )  # Normalize to [0,1]
+            substrate_mask = substrate_dist.clip(
+                0, 1
+            )  # Closer to substrate => lower value
+        else:
+            substrate_mask = None
+
         separations = {}
 
         for name, tone_rgb in self.spec.tones.items():
-            # Calculate Euclidean distance to the tone color
+            # Tone distance
             tone_array = np.array(tone_rgb).astype(np.float32).reshape((1, 1, 3))
-            dist = np.linalg.norm(img_array - tone_array, axis=2)
+            tone_dist = np.linalg.norm(img_array - tone_array, axis=2)
+            tone_dist = 1 - (tone_dist / np.sqrt(3 * (255**2)))  # Closer => more ink
+            tone_mask = tone_dist.clip(0, 1)
 
-            # Normalize distance to [0, 255], invert so that closer = more ink
-            dist = 1 - (dist / np.sqrt(3 * (255**2)))  # Now in [0,1]
-            mask = (dist * 255).clip(0, 255).astype(np.uint8)
+            if substrate_mask is not None:
+                # Reduce ink where substrate already contributes
+                tone_mask *= substrate_mask  # Avoid printing over substrate
 
-            # Convert to grayscale image
+            # Scale to 8-bit grayscale
+            mask = (tone_mask * 255).astype(np.uint8)
             separations[name] = Image.fromarray(mask, mode="L")
 
         self.separations = separations
@@ -86,18 +106,35 @@ class SimProcessSep(Sep):
 
 class SpotSep(Sep):
     def split(self):
-        """Separate image into spot color channels based on color similarity (within threshold)."""
+        """Separate image into spot color channels based on color similarity (within threshold),
+        optionally avoiding substrate-colored regions."""
+
         rgb_image = self._ensure_mode("RGB")
         img_array = np.array(rgb_image).astype(np.int16)
 
         separations = {}
 
-        for name, color in self.spec.tones.items():
-            color_array = np.array(color).reshape((1, 1, 3))
-            diff = np.linalg.norm(img_array - color_array, axis=2)
+        # Compute distance to substrate if provided
+        if self.spec.substrate is not None:
+            substrate_array = (
+                np.array(self.spec.substrate).reshape((1, 1, 3)).astype(np.int16)
+            )
+            substrate_dist = np.linalg.norm(img_array - substrate_array, axis=2)
+        else:
+            substrate_dist = None
 
-            # Generate a binary mask where pixels within threshold are white (255), others are black (0)
-            mask = (diff <= self.spec.threshold).astype(np.uint8) * 255
-            separations[name] = Image.fromarray(mask, mode="L")
+        for name, color in self.spec.tones.items():
+            color_array = np.array(color).reshape((1, 1, 3)).astype(np.int16)
+            color_dist = np.linalg.norm(img_array - color_array, axis=2)
+
+            # Initial match: within threshold to spot color
+            mask = color_dist <= self.spec.threshold
+
+            if substrate_dist is not None:
+                # Also require that pixel is not too close to the substrate
+                mask &= substrate_dist > self.spec.threshold
+
+            # Convert boolean mask to binary image
+            separations[name] = Image.fromarray(mask.astype(np.uint8) * 255, mode="L")
 
         self.separations = separations
