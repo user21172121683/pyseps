@@ -13,9 +13,8 @@ from utils.helpers import norm_intensity
 class Halftone(ABC):
     """Base halftone."""
 
-    def __init__(self, image: Image.Image, dot: Dot, spec: HalftoneSpec):
+    def __init__(self, image: Image.Image, spec: HalftoneSpec):
         self.image = image
-        self.dot = dot
         self.spec = spec
 
         # Use PPI from image metadata or spec
@@ -32,19 +31,19 @@ class Halftone(ABC):
         else:
             self._resized_image = image
 
-        mode = "L" if not self.dot.spec.modulate and self.spec.hardmix else "1"
+        mode = "L" if self.spec.hardmix else "1"
         self.halftone = Image.new(mode, self._resized_image.size, "white")
         self.canvas = ImageDraw.Draw(self.halftone)
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(image={repr(self.image)}, dot={repr(self.dot)}, spec={repr(self.spec)})"
+        return f"{self.__class__.__name__}(image={repr(self.image)}, spec={repr(self.spec)})"
 
     def save(self, filename: str):
         self.halftone.save(
             filename + ".tiff", compression="group4", dpi=(self.spec.dpi, self.spec.dpi)
         )
 
-    def generate(self, angle) -> Image:
+    def generate(self, dot: Dot, angle) -> Image:
         """Draw modulated dots based on local image intensity."""
         pixels = np.array(self._resized_image)
         width, height = self._resized_image.size
@@ -57,7 +56,7 @@ class Halftone(ABC):
             avg = np.mean(block)
             intensity = max(0.0, min(1.0, norm_intensity(int(avg))))
 
-            self.dot.draw(
+            dot.draw(
                 canvas=self.canvas,
                 center=(x, y),
                 size=self.spacing,
