@@ -36,6 +36,9 @@ class Halftone(ABC):
         self.halftone = Image.new(mode, self._resized_image.size, "white")
         self.canvas = ImageDraw.Draw(self.halftone)
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(image={repr(self.image)}, dot={repr(self.dot)}, spec={repr(self.spec)})"
+
     def save(self, filename: str):
         self.halftone.save(
             filename + ".tiff", compression="group4", dpi=(self.spec.dpi, self.spec.dpi)

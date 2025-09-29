@@ -12,6 +12,9 @@ class Split(ABC):
         self.spec = spec
         self.separations = {}
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(image={repr(self.image)}, spec={repr(self.spec)})"
+
     def _ensure_mode(self, fmt):
         if self.image.mode.upper() != fmt:
             image = self.image.convert(fmt)

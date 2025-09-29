@@ -10,6 +10,9 @@ class Dot(ABC):
     def __init__(self, spec: DotSpec):
         self.spec = spec
 
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(spec={repr(self.spec)})"
+
     def draw(
         self,
         canvas: ImageDraw,
