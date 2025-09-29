@@ -12,7 +12,6 @@ from utils.helpers import norm_intensity
 
 @dataclass
 class HalftoneSpec:
-    dot: Dot
     lpi: int
     dpi: int
     ppi: int | None = None
@@ -25,8 +24,9 @@ class HalftoneSpec:
 class Halftone(ABC):
     """Base halftone."""
 
-    def __init__(self, image: Image.Image, spec: HalftoneSpec):
+    def __init__(self, image: Image.Image, dot: Dot, spec: HalftoneSpec):
         self.image = image
+        self.dot = dot
         self.spec = spec
 
         # Use PPI from image metadata or spec
@@ -88,7 +88,7 @@ class Halftone(ABC):
             intensity = norm_intensity(int(avg))
 
             dot_spec = self._create_dot_spec(x, y, intensity)
-            self.spec.dot.draw(dot_spec)
+            self.dot.draw(dot_spec)
 
     def _get_clipped_block(
         self, x: float, y: float, width: int, height: int, pixels: np.ndarray
@@ -112,7 +112,7 @@ class Halftone(ABC):
         """Draw uniform dots across the grid."""
         for x, y in self._iter_grid_points():
             dot_spec = self._create_dot_spec(x, y)
-            self.spec.dot.draw(dot_spec)
+            self.dot.draw(dot_spec)
 
     def _hardmix(self):
         base_array = np.array(ImageOps.invert(self._resized_image), dtype=np.uint16)
