@@ -1,14 +1,9 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+
 from PIL import Image, ImageOps
 import numpy as np
 
-
-@dataclass
-class SepSpec:
-    tones: dict[str, tuple[int, int, int]]
-    threshold: int = 30
-    substrate: tuple = (255, 255, 255)
+from core.specs import SepSpec
 
 
 class Sep(ABC):

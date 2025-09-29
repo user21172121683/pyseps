@@ -1,18 +1,7 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import math
-from PIL import ImageDraw
 
-
-@dataclass
-class DotSpec:
-    canvas: ImageDraw
-    center: tuple[float, float]
-    size: float
-    angle: float = 0.0
-    intensity: float = 1.0
-    fill: int = 0
-    gradient: bool = False
+from core.specs import DotSpec
 
 
 class Dot(ABC):

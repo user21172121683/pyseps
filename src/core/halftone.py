@@ -1,24 +1,13 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 import math
 from typing import Iterator
 
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 import numpy as np
 
-from core.dot import Dot, DotSpec
+from core.specs import HalftoneSpec, DotSpec
+from core.dot import Dot
 from utils.helpers import norm_intensity
-
-
-@dataclass
-class HalftoneSpec:
-    lpi: int
-    dpi: int
-    ppi: int | None = None
-    angle: float = 0.0
-    modulate: bool = True
-    hardmix: bool = False
-    threshold: int = 127
 
 
 class Halftone(ABC):
