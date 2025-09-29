@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from PIL import ImageDraw
 
+
 @dataclass
 class SepSpec:
     tones: dict[str, tuple[int, int, int]]
@@ -10,8 +11,8 @@ class SepSpec:
 
 @dataclass
 class HalftoneSpec:
-    lpi: int
-    dpi: int
+    lpi: int = 55
+    dpi: int = 1200
     ppi: int | None = None
     angle: float = 0.0
     modulate: bool = True
