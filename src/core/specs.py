@@ -18,6 +18,7 @@ class HalftoneSpec:
     modulate: bool = True
     hardmix: bool = False
     threshold: int = 127
+    gain: float = 0.0
 
 
 @dataclass

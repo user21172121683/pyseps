@@ -74,7 +74,7 @@ class Halftone(ABC):
                 continue
 
             avg = np.mean(block)
-            intensity = norm_intensity(int(avg))
+            intensity = max(0.0, min(1.0, norm_intensity(int(avg)) - self.spec.gain))
 
             dot_spec = self._create_dot_spec(x, y, intensity)
             self.dot.draw(dot_spec)
