@@ -1,31 +1,60 @@
 from abc import ABC, abstractmethod
 import math
 
+from PIL import ImageDraw
+
 from core.specs import DotSpec
 
 
 class Dot(ABC):
-    def draw(self, spec: DotSpec):
-        if spec.gradient:
-            self._draw_concentric(spec)
-        else:
-            self._draw_shape(spec)
+    def __init__(self, spec: DotSpec):
+        self.spec = spec
 
-    def _draw_concentric(self, spec: DotSpec) -> None:
-        radius = spec.size / 2
+    def draw(
+        self,
+        canvas: ImageDraw,
+        *,
+        center: tuple[float, float],
+        size: float,
+        angle: float,
+        intensity: float
+    ):
+        if self.spec.gradient:
+            self._draw_concentric(
+                canvas=canvas,
+                center=center,
+                size=size,
+                angle=angle,
+                intensity=intensity,
+            )
+        else:
+            self._draw_shape(
+                canvas=canvas,
+                center=center,
+                size=size,
+                angle=angle,
+                intensity=intensity,
+            )
+
+    def _draw_concentric(
+        self,
+        canvas: ImageDraw,
+        center: tuple[float, float],
+        size: float,
+        angle: float,
+        intensity: float,
+    ) -> None:
+        radius = size / 2
         for r in range(int(radius), 0, -1):
             t = (r / radius) ** 3
-            current_fill = int(255 * t)
-            updated_spec = DotSpec(
-                canvas=spec.canvas,
-                center=spec.center,
+            self._draw_shape(
+                canvas=canvas,
+                center=center,
                 size=r * 2,
-                angle=spec.angle,
-                intensity=spec.intensity,
-                fill=current_fill,
-                gradient=False,
+                angle=angle,
+                intensity=intensity,
+                fill=int(255 * t),
             )
-            self._draw_shape(updated_spec)
 
     def _rotate_shape(
         self,
@@ -46,27 +75,59 @@ class Dot(ABC):
             rotated_points.append((qx, qy))
         return rotated_points
 
+    def _return_half_size(self, size: float, intensity: float) -> float:
+        if not self.spec.modulate:
+            intensity = 1.0
+
+        adjusted_radius = ((size * intensity) / 2) * (1 - self.spec.gain)
+
+        return max(adjusted_radius, 0.0)
+
     @abstractmethod
-    def _draw_shape(self, spec: DotSpec):
+    def _draw_shape(
+        self,
+        canvas: ImageDraw,
+        center: tuple[float, float],
+        size: float,
+        angle: float,
+        intensity: float,
+        fill: int = 0,
+    ):
         pass
 
 
 class RoundDot(Dot):
     """Simple round dot."""
 
-    def _draw_shape(self, spec: DotSpec):
-        cx, cy = spec.center
-        r = (spec.size * spec.intensity) / 2
+    def _draw_shape(
+        self,
+        canvas: ImageDraw,
+        center: tuple[float, float],
+        size: float,
+        angle: float,
+        intensity: float,
+        fill: int = 0,
+    ):
+        cx, cy = center
+        r = self._return_half_size(size, intensity)
         bbox = [cx - r, cy - r, cx + r, cy + r]
-        spec.canvas.ellipse(bbox, fill=spec.fill)
+        canvas.ellipse(bbox, fill=fill)
 
 
 class SquareDot(Dot):
     """Simple square dot."""
 
-    def _draw_shape(self, spec: DotSpec):
-        cx, cy = spec.center
-        half = (spec.size * spec.intensity) / 2
+    def _draw_shape(
+        self,
+        canvas: ImageDraw,
+        center: tuple[float, float],
+        size: float,
+        angle: float,
+        intensity: float,
+        fill: int = 0,
+    ):
+        cx, cy = center
+        half = self._return_half_size(size, intensity)
 
         # Define corners of an unrotated square
         corners = [
@@ -77,25 +138,33 @@ class SquareDot(Dot):
         ]
 
         # Rotate if needed
-        if spec.angle != 0:
-            corners = self._rotate_shape(corners, spec.center, spec.angle)
+        if angle != 0:
+            corners = self._rotate_shape(corners, center, angle)
 
-        spec.canvas.polygon(corners, fill=spec.fill)
+        canvas.polygon(corners, fill=fill)
 
 
 class EllipticalDot(Dot):
     """Asymmetrically modulated elliptical dot."""
 
-    def _draw_shape(self, spec: DotSpec):
-        cx, cy = spec.center
+    def _draw_shape(
+        self,
+        canvas: ImageDraw,
+        center: tuple[float, float],
+        size: float,
+        angle: float,
+        intensity: float,
+        fill: int = 0,
+    ):
+        cx, cy = center
 
         # Compute ellipse radii
-        rx = (spec.size * spec.intensity) / 2.0
+        rx = self._return_half_size(size, intensity)
 
         # Aspect ratio modulates with intensity (more circular as intensity ↑)
         min_aspect_ratio = 1.0
         max_aspect_ratio = 4.0
-        aspect_ratio = min_aspect_ratio + (1.0 - spec.intensity) * (
+        aspect_ratio = min_aspect_ratio + (1.0 - intensity) * (
             max_aspect_ratio - min_aspect_ratio
         )
 
@@ -113,7 +182,7 @@ class EllipticalDot(Dot):
         ]
 
         # Rotate ellipse if needed
-        if spec.angle != 0:
-            points = self._rotate_shape(points, spec.center, spec.angle)
+        if angle != 0:
+            points = self._rotate_shape(points, center, angle)
 
-        spec.canvas.polygon(points, fill=spec.fill)
+        canvas.polygon(points, fill=fill)

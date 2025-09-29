@@ -5,7 +5,7 @@ from typing import Iterator
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 import numpy as np
 
-from core.specs import HalftoneSpec, DotSpec
+from core.specs import HalftoneSpec
 from core.dot import Dot
 from utils.helpers import norm_intensity
 
@@ -32,7 +32,7 @@ class Halftone(ABC):
         else:
             self._resized_image = image
 
-        mode = "L" if not self.spec.modulate and self.spec.hardmix else "1"
+        mode = "L" if not self.dot.spec.modulate and self.spec.hardmix else "1"
         self.halftone = Image.new(mode, self._resized_image.size, "white")
         self.canvas = ImageDraw.Draw(self.halftone)
 
@@ -41,43 +41,31 @@ class Halftone(ABC):
             filename + ".tiff", compression="group4", dpi=(self.spec.dpi, self.spec.dpi)
         )
 
-    def generate(self) -> Image:
-        if self.spec.modulate:
-            self._render_modulated()
-        else:
-            self._render_unmodulated()
-
-        if self.spec.hardmix:
-            self._hardmix()
-
-        return self.halftone
-
-    def _create_dot_spec(self, x: float, y: float, intensity: float = 1.0) -> DotSpec:
-        """Create a DotSpec instance for the given position and intensity."""
-        return DotSpec(
-            canvas=self.canvas,
-            center=(x, y),
-            size=self.spacing,
-            angle=self.spec.angle,
-            intensity=intensity,
-            gradient=self.spec.hardmix,
-        )
-
-    def _render_modulated(self):
+    def generate(self, angle) -> Image:
         """Draw modulated dots based on local image intensity."""
         pixels = np.array(self._resized_image)
         width, height = self._resized_image.size
 
-        for x, y in self._iter_grid_points():
+        for x, y in self._iter_grid_points(angle):
             block = self._get_clipped_block(x, y, width, height, pixels)
             if block is None or block.size == 0:
                 continue
 
             avg = np.mean(block)
-            intensity = max(0.0, min(1.0, norm_intensity(int(avg)) - self.spec.gain))
+            intensity = max(0.0, min(1.0, norm_intensity(int(avg))))
 
-            dot_spec = self._create_dot_spec(x, y, intensity)
-            self.dot.draw(dot_spec)
+            self.dot.draw(
+                canvas=self.canvas,
+                center=(x, y),
+                size=self.spacing,
+                angle=angle,
+                intensity=intensity,
+            )
+
+        if self.spec.hardmix:
+            self._hardmix()
+
+        return self.halftone
 
     def _get_clipped_block(
         self, x: float, y: float, width: int, height: int, pixels: np.ndarray
@@ -97,12 +85,6 @@ class Halftone(ABC):
 
         return pixels[y0_clip:y1_clip, x0_clip:x1_clip]
 
-    def _render_unmodulated(self):
-        """Draw uniform dots across the grid."""
-        for x, y in self._iter_grid_points():
-            dot_spec = self._create_dot_spec(x, y)
-            self.dot.draw(dot_spec)
-
     def _hardmix(self):
         base_array = np.array(ImageOps.invert(self._resized_image), dtype=np.uint16)
         mask_array = np.array(
@@ -114,7 +96,7 @@ class Halftone(ABC):
         self.halftone = Image.fromarray(result_array, mode="L").convert("1")
 
     @abstractmethod
-    def _iter_grid_points(self) -> Iterator[tuple[float, float]]:
+    def _iter_grid_points(self, angle=0) -> Iterator[tuple[float, float]]:
         """Yield center positions for dot placement."""
         raise NotImplementedError
 
@@ -122,9 +104,9 @@ class Halftone(ABC):
 class AMHalftone(Halftone):
     """Uniform cell grid."""
 
-    def _iter_grid_points(self):
+    def _iter_grid_points(self, angle=0):
         width, height = self._resized_image.size
-        angle_rad = math.radians(self.spec.angle)
+        angle_rad = math.radians(angle)
 
         cos_a = math.cos(angle_rad)
         sin_a = math.sin(angle_rad)
@@ -174,7 +156,7 @@ class AMHalftone(Halftone):
 class DitherHalftone(Halftone):
     """Floyd-Steinberg dithered cell grid."""
 
-    def _iter_grid_points(self) -> Iterator[tuple[float, float]]:
+    def _iter_grid_points(self, angle=0) -> Iterator[tuple[float, float]]:
         spacing = int(self.spacing)
         w, h = self._resized_image.size
 
@@ -217,7 +199,7 @@ class DitherHalftone(Halftone):
 class ThresholdHalftone(Halftone):
     """Threshold-based halftone."""
 
-    def _iter_grid_points(self) -> Iterator[tuple[float, float]]:
+    def _iter_grid_points(self, angle=0) -> Iterator[tuple[float, float]]:
         grayscale = self._resized_image.convert("L")
         pixels = np.array(grayscale)
 
@@ -225,5 +207,5 @@ class ThresholdHalftone(Halftone):
 
         for y in range(height):
             for x in range(width):
-                if pixels[y, x] > self.spec.threshold:
+                if pixels[y, x] > 127:
                     yield float(x), float(y)
