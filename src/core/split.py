@@ -3,11 +3,11 @@ from abc import ABC, abstractmethod
 from PIL import Image, ImageOps
 import numpy as np
 
-from core.specs import SepSpec
+from core.specs import SplitSpec
 
 
-class Sep(ABC):
-    def __init__(self, image: Image, spec: SepSpec):
+class Split(ABC):
+    def __init__(self, image: Image, spec: SplitSpec):
         self.image = image
         self.spec = spec
         self.separations = {}
@@ -24,7 +24,7 @@ class Sep(ABC):
         pass
 
 
-class ProcessSep(Sep):
+class ProcessSplit(Split):
     def split(self):
         """Split CMYK image into C, M, Y, K channels."""
         image = self._ensure_mode("CMYK")
@@ -32,7 +32,7 @@ class ProcessSep(Sep):
         self.separations = {"C": c, "M": m, "Y": y, "K": k}
 
 
-class RGBSep(Sep):
+class RGBSplit(Split):
     def split(self):
         """Split image into R, G, B (and A) channels."""
         image = self._ensure_mode("RGBA" if self.image.mode == "RGBA" else "RGB")
@@ -47,7 +47,7 @@ class RGBSep(Sep):
             self.separations["A"] = a
 
 
-class LSep(Sep):
+class LSplit(Split):
     def split(self):
         """Return grayscale image."""
         image = self._ensure_mode("L")
@@ -55,7 +55,7 @@ class LSep(Sep):
         self.separations = {"L": l}
 
 
-class SimProcessSep(Sep):
+class SimProcessSplit(Split):
     def split(self):
         """Simulate spot color separation using color distance,
         optionally accounting for a substrate color."""
@@ -99,9 +99,9 @@ class SimProcessSep(Sep):
         self.separations = separations
 
 
-class SpotSep(Sep):
+class SpotSplit(Split):
     def split(self):
-        """Separate image into spot color channels based on color similarity (within threshold),
+        """Splitarate image into spot color channels based on color similarity (within threshold),
         optionally avoiding substrate-colored regions."""
 
         rgb_image = self._ensure_mode("RGB")

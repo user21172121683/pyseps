@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 
 @dataclass
-class SepSpec:
+class SplitSpec:
     tones: dict[str, tuple[int, int, int]]
     threshold: int = 30
     substrate: tuple[int, int, int] = (255, 255, 255)
