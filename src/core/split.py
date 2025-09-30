@@ -7,64 +7,61 @@ from core.specs import SplitSpec
 
 
 class Split(ABC):
-    def __init__(self, image: Image, spec: SplitSpec):
-        self.image = image
+    def __init__(self, spec: SplitSpec):
         self.spec = spec
-        self.separations = {}
 
     def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(image={repr(self.image)}, spec={repr(self.spec)})"
+        return f"{self.__class__.__name__}(spec={repr(self.spec)})"
 
-    def _ensure_mode(self, fmt):
-        if self.image.mode.upper() != fmt:
-            image = self.image.convert(fmt)
-        else:
-            image = self.image
+    def _ensure_mode(self, image, mode):
+        if image.mode.upper() != mode:
+            image = image.convert(mode)
         return image
 
     @abstractmethod
-    def split(self):
+    def split(self, image):
         pass
 
 
 class ProcessSplit(Split):
-    def split(self):
+    def split(self, image):
         """Split CMYK image into C, M, Y, K channels."""
-        image = self._ensure_mode("CMYK")
+        image = self._ensure_mode(image, "CMYK")
         c, m, y, k = image.split()
-        self.separations = {"C": c, "M": m, "Y": y, "K": k}
+        return {"C": c, "M": m, "Y": y, "K": k}
 
 
 class RGBSplit(Split):
-    def split(self):
+    def split(self, image):
         """Split image into R, G, B (and A) channels."""
-        image = self._ensure_mode("RGBA" if self.image.mode == "RGBA" else "RGB")
+        image = self._ensure_mode(image, "RGBA" if image.mode == "RGBA" else "RGB")
         channels = image.split()
 
         r, g, b = channels[:3]
 
-        self.separations = {"R": r, "G": g, "B": b}
+        separations = {"R": r, "G": g, "B": b}
 
         if image.mode == "RGBA" and len(channels) == 4:
-            a = channels[3]
-            self.separations["A"] = a
+            separations["A"] = channels[3]
+
+        return separations
 
 
 class LSplit(Split):
-    def split(self):
+    def split(self, image):
         """Return grayscale image."""
-        image = self._ensure_mode("L")
+        image = self._ensure_mode(image, "L")
         l = ImageOps.invert(image)
-        self.separations = {"L": l}
+        return {"L": l}
 
 
 class SimProcessSplit(Split):
-    def split(self):
+    def split(self, image):
         """Simulate spot color separation using color distance,
         optionally accounting for a substrate color."""
 
         # Ensure image is RGB
-        rgb_image = self._ensure_mode("RGB")
+        rgb_image = self._ensure_mode(image, "RGB")
         img_array = np.array(rgb_image).astype(np.float32)  # shape: (H, W, 3)
 
         # Optional substrate color
@@ -99,15 +96,15 @@ class SimProcessSplit(Split):
             mask = (tone_mask * 255).astype(np.uint8)
             separations[name] = Image.fromarray(mask, mode="L")
 
-        self.separations = separations
+        return separations
 
 
 class SpotSplit(Split):
-    def split(self):
+    def split(self, image):
         """Splitarate image into spot color channels based on color similarity (within threshold),
         optionally avoiding substrate-colored regions."""
 
-        rgb_image = self._ensure_mode("RGB")
+        rgb_image = self._ensure_mode(image, "RGB")
         img_array = np.array(rgb_image).astype(np.int16)
 
         separations = {}
@@ -135,4 +132,4 @@ class SpotSplit(Split):
             # Convert boolean mask to binary image
             separations[name] = Image.fromarray(mask.astype(np.uint8) * 255, mode="L")
 
-        self.separations = separations
+        return separations

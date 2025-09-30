@@ -13,42 +13,26 @@ from utils.helpers import norm_intensity
 class Halftone(ABC):
     """Base halftone."""
 
-    def __init__(self, image: Image.Image, spec: HalftoneSpec):
-        self.image = image
+    def __init__(self, spec: HalftoneSpec):
         self.spec = spec
-
-        # Use PPI from image metadata or spec
-        self.ppi = image.info.get("dpi", (300, 300))[0] or spec.ppi or 300
         self.spacing = spec.dpi / spec.lpi
 
-        # Rescale image if necessary
-        if self.ppi != spec.dpi:
-            scale = spec.dpi / self.ppi
-            new_size = tuple(int(dim * scale) for dim in image.size)
-            self._resized_image = image.resize(
-                new_size, resample=Image.Resampling.LANCZOS
-            )
-        else:
-            self._resized_image = image
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(spec={repr(self.spec)})"
+
+    def generate(self, image: Image.Image, dot: Dot, angle: float) -> Image:
+        """Draw modulated dots based on local image intenity."""
+
+        resized_image = self._resize(image)
 
         mode = "L" if self.spec.hardmix else "1"
-        self.halftone = Image.new(mode, self._resized_image.size, "white")
-        self.canvas = ImageDraw.Draw(self.halftone)
+        halftone = Image.new(mode, resized_image.size, "white")
+        canvas = ImageDraw.Draw(halftone)
 
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(image={repr(self.image)}, spec={repr(self.spec)})"
+        pixels = np.array(resized_image)
+        width, height = resized_image.size
 
-    def save(self, filename: str):
-        self.halftone.save(
-            filename + ".tiff", compression="group4", dpi=(self.spec.dpi, self.spec.dpi)
-        )
-
-    def generate(self, dot: Dot, angle) -> Image:
-        """Draw modulated dots based on local image intensity."""
-        pixels = np.array(self._resized_image)
-        width, height = self._resized_image.size
-
-        for x, y in self._iter_grid_points(angle):
+        for x, y in self._iter_grid_points(resized_image, angle):
             block = self._get_clipped_block(x, y, width, height, pixels)
             if block is None or block.size == 0:
                 continue
@@ -57,7 +41,7 @@ class Halftone(ABC):
             intensity = max(0.0, min(1.0, norm_intensity(int(avg))))
 
             dot.draw(
-                canvas=self.canvas,
+                canvas=canvas,
                 center=(x, y),
                 size=self.spacing,
                 angle=angle,
@@ -65,9 +49,20 @@ class Halftone(ABC):
             )
 
         if self.spec.hardmix:
-            self._hardmix()
+            halftone = self._hardmix(resized_image, halftone)
 
-        return self.halftone
+        return halftone
+
+    def _resize(self, image: Image) -> tuple[Image, int]:
+        """Resize image to match spec.dpi and return resized image."""
+        ppi = image.info.get("dpi", (300, 300))[0] or self.spec.ppi or 300
+        if ppi != self.spec.dpi:
+            scale = self.spec.dpi / ppi
+            new_size = tuple(int(dim * scale) for dim in image.size)
+            resized_image = image.resize(new_size, resample=Image.Resampling.LANCZOS)
+        else:
+            resized_image = image
+        return resized_image
 
     def _get_clipped_block(
         self, x: float, y: float, width: int, height: int, pixels: np.ndarray
@@ -87,18 +82,20 @@ class Halftone(ABC):
 
         return pixels[y0_clip:y1_clip, x0_clip:x1_clip]
 
-    def _hardmix(self):
-        base_array = np.array(ImageOps.invert(self._resized_image), dtype=np.uint16)
+    def _hardmix(self, resized_image, halftone):
+        base_array = np.array(ImageOps.invert(resized_image), dtype=np.uint16)
         mask_array = np.array(
-            self.halftone.filter(ImageFilter.GaussianBlur(radius=self.spacing / 10)),
+            halftone.filter(ImageFilter.GaussianBlur(radius=self.spacing / 10)),
             dtype=np.uint16,
         )
         combined = base_array + mask_array
         result_array = np.where(combined >= 255, 255, 0).astype(np.uint8)
-        self.halftone = Image.fromarray(result_array, mode="L").convert("1")
+        return Image.fromarray(result_array, mode="L").convert("1")
 
     @abstractmethod
-    def _iter_grid_points(self, angle=0) -> Iterator[tuple[float, float]]:
+    def _iter_grid_points(
+        self, resized_image, angle=0
+    ) -> Iterator[tuple[float, float]]:
         """Yield center positions for dot placement."""
         raise NotImplementedError
 
@@ -106,8 +103,8 @@ class Halftone(ABC):
 class AMHalftone(Halftone):
     """Uniform cell grid."""
 
-    def _iter_grid_points(self, angle=0):
-        width, height = self._resized_image.size
+    def _iter_grid_points(self, resized_image, angle=0):
+        width, height = resized_image.size
         angle_rad = math.radians(angle)
 
         cos_a = math.cos(angle_rad)
@@ -158,12 +155,14 @@ class AMHalftone(Halftone):
 class DitherHalftone(Halftone):
     """Floyd-Steinberg dithered cell grid."""
 
-    def _iter_grid_points(self, angle=0) -> Iterator[tuple[float, float]]:
+    def _iter_grid_points(
+        self, resized_image, angle=0
+    ) -> Iterator[tuple[float, float]]:
         spacing = int(self.spacing)
-        w, h = self._resized_image.size
+        w, h = resized_image.size
 
         # Downscale to dot grid size
-        small = self._resized_image.resize(
+        small = resized_image.resize(
             (w // spacing, h // spacing),
             resample=Image.Resampling.LANCZOS,
         ).convert("L")
@@ -201,8 +200,10 @@ class DitherHalftone(Halftone):
 class ThresholdHalftone(Halftone):
     """Threshold-based halftone."""
 
-    def _iter_grid_points(self, angle=0) -> Iterator[tuple[float, float]]:
-        grayscale = self._resized_image.convert("L")
+    def _iter_grid_points(
+        self, resized_image, angle=0
+    ) -> Iterator[tuple[float, float]]:
+        grayscale = resized_image.convert("L")
         pixels = np.array(grayscale)
 
         height, width = pixels.shape
