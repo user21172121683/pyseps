@@ -1,9 +1,8 @@
-Pre: Pre
-PreSpec:
+pre:
     grayscale: false
     resize: [0, 0]
-Split: LSplit
-SplitSpec:
+split:
+    type: ProcessSplit
     tones:
         red: [255, 0, 0]
         blue: [0, 255, 0]
@@ -12,14 +11,14 @@ SplitSpec:
     threshold: 30
     substrate: [0, 0, 0]
     angles: [15, 75, 0, 45]
-Halftone: AMHalftone
-HalftoneSpec:
+halftone:
+    type: AMHalftone
     lpi: 55
     dpi: 1200
     ppi: 300
     hardmix: false
-Dot: RoundDot
-DotSpec:
+dot:
+    type: RoundDot
     fill: 0
     gradient: false
     gain: 0.0

@@ -154,8 +154,8 @@ class Sep:
     def _refresh(self):
         if not all(
             [
-                self._pre,  # NEW
-                self._pre_spec,  # NEW
+                self._pre,
+                self._pre_spec,
                 self._split,
                 self._split_spec,
                 self._halftone,
@@ -233,7 +233,6 @@ class Sep:
         else:
             return obj
 
-
     # PUBLIC METHODS #
 
     def save(self):
@@ -245,28 +244,27 @@ class Sep:
             )
 
     def export_template(self, filename="template.yaml"):
-        if not all(
-            [self._pre_spec, self._split_spec, self._halftone_spec, self._dot_spec]
-        ):
-            raise ValueError("Cannot export template — specs are incomplete.")
+        def block(component, spec):
+            if not (component and spec):
+                return None
+            data = self._asdict_excluding_inherited(spec)
+            data["type"] = component.__class__.__name__
+            return self._convert_tuples_to_lists(data)
 
         template = {
-            "Pre": self._pre.__class__.__name__,
-            "PreSpec": self._asdict_excluding_inherited(self._pre_spec),
-            "Split": self._split.__class__.__name__,
-            "SplitSpec": self._asdict_excluding_inherited(self._split_spec),
-            "Halftone": self._halftone.__class__.__name__,
-            "HalftoneSpec": self._asdict_excluding_inherited(self._halftone_spec),
-            "Dot": self._dot.__class__.__name__,
-            "DotSpec": self._asdict_excluding_inherited(self._dot_spec),
+            "pre": block(self._pre, self._pre_spec),
+            "split": block(self._split, self._split_spec),
+            "halftone": block(self._halftone, self._halftone_spec),
+            "dot": block(self._dot, self._dot_spec),
         }
 
-        clean_template = self._convert_tuples_to_lists(template)
+        # Remove None entries
+        template = {k: v for k, v in template.items() if v is not None}
+
         path = TEMPLATES_DIR / filename
         path.parent.mkdir(parents=True, exist_ok=True)
-
         with path.open("w", encoding="utf-8") as f:
-            yaml.dump(clean_template, f, sort_keys=False, indent=4)
+            yaml.dump(template, f, sort_keys=False, indent=4)
 
     def import_template(self, filename=DEFAULT_TEMPLATE):
         path = TEMPLATES_DIR / filename
@@ -276,32 +274,64 @@ class Sep:
         with path.open("r", encoding="utf-8") as f:
             template = yaml.safe_load(f)
 
-        # Convert all list values in specs back to tuples
-        template = self._convert_lists_to_tuples(template)
+        def apply_component(
+            key, spec_cls, current_spec, current_func, default_func_cls
+        ):
+            block = template.get(key)
+            if not block:
+                return current_spec, current_func  # Nothing to update
 
-        # Instantiate Spec objects from saved config
-        self._pre_spec = PreSpec(**template["PreSpec"])
-        self._split_spec = SplitSpec(**template["SplitSpec"])
-        self._halftone_spec = HalftoneSpec(**template["HalftoneSpec"])
-        self._dot_spec = DotSpec(**template["DotSpec"])
+            block = self._convert_lists_to_tuples(block)
 
-        # Set up on_change listeners
-        self._pre_spec.set_on_change(self._refresh)
-        self._split_spec.set_on_change(self._refresh)
-        self._halftone_spec.set_on_change(self._refresh)
-        self._dot_spec.set_on_change(self._refresh)
+            # Get class from 'type' field if present
+            cls_name = block.pop("type", None)
+            func_cls = self._class_from_name(cls_name) if cls_name else default_func_cls
 
-        # Load functional component classes from names
-        pre_cls = self._class_from_name(template["Pre"])
-        split_cls = self._class_from_name(template["Split"])
-        halftone_cls = self._class_from_name(template["Halftone"])
-        dot_cls = self._class_from_name(template["Dot"])
+            # Build updated spec (merge if already exists)
+            if current_spec:
+                # Update existing spec in-place
+                for k, v in block.items():
+                    setattr(current_spec, k, v)
+                spec = current_spec
+            else:
+                spec = spec_cls(**block)
 
-        # Instantiate functional components using the specs
-        self._pre = pre_cls(self._pre_spec)
-        self._split = split_cls(self._split_spec)
-        self._halftone = halftone_cls(self._halftone_spec)
-        self._dot = dot_cls(self._dot_spec)
+            spec.set_on_change(self._refresh)
+            func = func_cls(spec)
 
-        # Trigger regeneration
+            return spec, func
+
+        # Pre
+        self._pre_spec, self._pre = apply_component(
+            "pre",
+            PreSpec,
+            self._pre_spec,
+            self._pre,
+            type(self._pre) if self._pre else Pre,
+        )
+        # Split
+        self._split_spec, self._split = apply_component(
+            "split",
+            SplitSpec,
+            self._split_spec,
+            self._split,
+            type(self._split) if self._split else Split,
+        )
+        # Halftone
+        self._halftone_spec, self._halftone = apply_component(
+            "halftone",
+            HalftoneSpec,
+            self._halftone_spec,
+            self._halftone,
+            type(self._halftone) if self._halftone else Halftone,
+        )
+        # Dot
+        self._dot_spec, self._dot = apply_component(
+            "dot",
+            DotSpec,
+            self._dot_spec,
+            self._dot,
+            type(self._dot) if self._dot else Dot,
+        )
+
         self._refresh()
