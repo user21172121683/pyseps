@@ -1,4 +1,8 @@
-Split: ProcessSplit
+Pre: Pre
+PreSpec:
+    grayscale: false
+    resize: [0, 0]
+Split: LSplit
 SplitSpec:
     tones:
         red: [255, 0, 0]

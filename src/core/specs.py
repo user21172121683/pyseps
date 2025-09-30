@@ -15,12 +15,17 @@ class Spec:
         super().__setattr__(name, value)
 
         # Only call _on_change if it exists and is not None
-        if hasattr(self, '_on_change') and self._on_change and value != old_value:
+        if hasattr(self, "_on_change") and self._on_change and value != old_value:
             self._on_change()
 
     def set_on_change(self, callback):
         self._on_change = callback
 
+
+@dataclass
+class PreSpec(Spec):
+    grayscale: bool = True
+    resize: tuple[int, int] = (0, 0)
 
 
 @dataclass

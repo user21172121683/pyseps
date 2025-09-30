@@ -3,7 +3,8 @@ from typing import Optional
 from PIL import Image
 import yaml
 
-from core.specs import Spec, SplitSpec, HalftoneSpec, DotSpec
+from core.specs import Spec, PreSpec, SplitSpec, HalftoneSpec, DotSpec
+from core.pre import Pre
 from core.split import Split
 from core.halftone import Halftone
 from core.dot import Dot
@@ -13,27 +14,33 @@ from constants import TEMPLATES_DIR, DEFAULT_TEMPLATE
 class Sep:
     def __init__(
         self,
-        image: Optional[Image.Image] = None,
+        image: Image.Image | None = None,
         folder: str = "",
-        split: Optional[Split] = None,
-        split_spec: Optional[SplitSpec] = None,
-        halftone: Optional[Halftone] = None,
-        halftone_spec: Optional[HalftoneSpec] = None,
-        dot: Optional[Dot] = None,
-        dot_spec: Optional[DotSpec] = None,
+        pre: Pre | None = None,
+        pre_spec: PreSpec | None = None,
+        split: Split | None = None,
+        split_spec: SplitSpec | None = None,
+        halftone: Halftone | None = None,
+        halftone_spec: HalftoneSpec | HalftoneSpec = None,
+        dot: Dot | None = None,
+        dot_spec: DotSpec | None = None,
     ):
-        self._split: Optional[Split] = split
-        self._split_spec: Optional[SplitSpec] = split_spec
-        self._halftone: Optional[Halftone] = halftone
-        self._halftone_spec: Optional[HalftoneSpec] = halftone_spec
-        self._dot: Optional[Dot] = dot
-        self._dot_spec: Optional[DotSpec] = dot_spec
+        self._pre: Pre | None = pre
+        self._pre_spec: PreSpec | None = pre_spec
+        self._split: Split | None = split
+        self._split_spec: SplitSpec | None = split_spec
+        self._halftone: Halftone | None = halftone
+        self._halftone_spec: HalftoneSpec | None = halftone_spec
+        self._dot: Dot | None = dot
+        self._dot_spec: DotSpec | None = dot_spec
 
-        self.image: Optional[Image.Image] = image
+        self.image: Image.Image | None = image
         self.folder: str = folder
         self.separations: dict[str, tuple[Image.Image, Image.Image]] = {}
 
         # Set change listeners on specs if available
+        if self._pre_spec:
+            self._pre_spec.set_on_change(self._refresh)
         if self._split_spec:
             self._split_spec.set_on_change(self._refresh)
         if self._halftone_spec:
@@ -65,6 +72,26 @@ class Sep:
         )
 
     # PROPERTY SETTERS WITH REFRESH #
+
+    @property
+    def pre_spec(self) -> Optional[PreSpec]:
+        return self._pre_spec
+
+    @pre_spec.setter
+    def pre_spec(self, value: PreSpec):
+        self._pre_spec = value
+        self._pre_spec.set_on_change(self._refresh)
+        self._refresh()
+
+    @property
+    def pre(self) -> Optional[Pre]:
+        return self._pre
+
+    @pre.setter
+    def pre(self, value: Pre):
+        self._pre = value
+        self._refresh()
+
     @property
     def split_spec(self) -> Optional[SplitSpec]:
         return self._split_spec
@@ -127,6 +154,8 @@ class Sep:
     def _refresh(self):
         if not all(
             [
+                self._pre,  # NEW
+                self._pre_spec,  # NEW
                 self._split,
                 self._split_spec,
                 self._halftone,
@@ -140,16 +169,18 @@ class Sep:
             return
 
         print(">>> REFRESHED SEP <<<")
-        print(f"  SplitSpec: {self._split_spec}")
-        print(f"  HalftoneSpec: {self._halftone_spec}")
-        print(f"  DotSpec: {self._dot_spec}")
         self._generate()
 
     def _generate(self):
         self.separations = {}
 
+        # Apply preprocessing step
+        preprocessed_image = self._pre.process(self.image)
+
         angles = self._split_spec.angles
-        for i, (name, positive) in enumerate(self._split.split(self.image).items()):
+        for i, (name, positive) in enumerate(
+            self._split.split(preprocessed_image).items()
+        ):
             angle = angles[i % len(angles)]
             halftoned = self._halftone.generate(positive, self._dot, angle)
             self.separations[name] = (positive, halftoned)
@@ -162,7 +193,7 @@ class Sep:
             )
 
         # List of known root base classes for functional components and specs
-        base_classes = [Dot, Halftone, Split, Spec]
+        base_classes = [Dot, Halftone, Split, Pre, Spec]
 
         # Search all subclasses across all base classes
         for base in base_classes:
@@ -205,10 +236,14 @@ class Sep:
             )
 
     def export_template(self, filename="template.yaml"):
-        if not all([self._split_spec, self._halftone_spec, self._dot_spec]):
+        if not all(
+            [self._pre_spec, self._split_spec, self._halftone_spec, self._dot_spec]
+        ):
             raise ValueError("Cannot export template — specs are incomplete.")
 
         template = {
+            "Pre": self._pre.__class__.__name__,
+            "PreSpec": self._asdict_excluding_inherited(self._pre_spec),
             "Split": self._split.__class__.__name__,
             "SplitSpec": self._asdict_excluding_inherited(self._split_spec),
             "Halftone": self._halftone.__class__.__name__,
@@ -232,24 +267,29 @@ class Sep:
         with path.open("r", encoding="utf-8") as f:
             template = yaml.safe_load(f)
 
-        # Instantiate Spec objects from dicts
+        # Instantiate Spec objects from saved config
+        self._pre_spec = PreSpec(**template["PreSpec"])
         self._split_spec = SplitSpec(**template["SplitSpec"])
         self._halftone_spec = HalftoneSpec(**template["HalftoneSpec"])
         self._dot_spec = DotSpec(**template["DotSpec"])
 
-        # Set on_change listeners
+        # Set up on_change listeners
+        self._pre_spec.set_on_change(self._refresh)
         self._split_spec.set_on_change(self._refresh)
         self._halftone_spec.set_on_change(self._refresh)
         self._dot_spec.set_on_change(self._refresh)
 
-        # Instantiate functional classes, passing specs
+        # Load functional component classes from names
+        pre_cls = self._class_from_name(template["Pre"])
         split_cls = self._class_from_name(template["Split"])
         halftone_cls = self._class_from_name(template["Halftone"])
         dot_cls = self._class_from_name(template["Dot"])
 
+        # Instantiate functional components using the specs
+        self._pre = pre_cls(self._pre_spec)
         self._split = split_cls(self._split_spec)
         self._halftone = halftone_cls(self._halftone_spec)
         self._dot = dot_cls(self._dot_spec)
 
-        # Trigger refresh
+        # Trigger regeneration
         self._refresh()
