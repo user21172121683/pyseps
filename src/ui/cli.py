@@ -1,7 +1,4 @@
 import argparse
-
-from PIL import Image
-
 from core.sep import Sep
 
 
@@ -19,7 +16,9 @@ class AppCLI:
         self.handle(args)
 
     def handle(self, args):
-        sep = Sep(Image.open(args.file))
+        sep = Sep(args.file)
+
+        sep.generate()
 
         if args.template:
             try:
