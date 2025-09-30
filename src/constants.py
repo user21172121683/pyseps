@@ -2,7 +2,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-TEMPLATES_DIR = ROOT / "templates"
+TEMPLATES_DIR = ROOT / "src" / "templates"
 DEFAULT_TEMPLATE = TEMPLATES_DIR / "default.yaml"
 APP_NAME = "pyseps"
 BANNER = """
