@@ -225,6 +225,15 @@ class Sep:
         else:
             return obj
 
+    def _convert_lists_to_tuples(self, obj):
+        if isinstance(obj, list):
+            return tuple(self._convert_lists_to_tuples(i) for i in obj)
+        elif isinstance(obj, dict):
+            return {k: self._convert_lists_to_tuples(v) for k, v in obj.items()}
+        else:
+            return obj
+
+
     # PUBLIC METHODS #
 
     def save(self):
@@ -266,6 +275,9 @@ class Sep:
 
         with path.open("r", encoding="utf-8") as f:
             template = yaml.safe_load(f)
+
+        # Convert all list values in specs back to tuples
+        template = self._convert_lists_to_tuples(template)
 
         # Instantiate Spec objects from saved config
         self._pre_spec = PreSpec(**template["PreSpec"])
