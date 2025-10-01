@@ -1,2 +1,2 @@
-from ui.cli import AppCLI
-from ui.gui import AppGUI
+from ui.cli.main import AppCLI
+from ui.gui.main import AppGUI
