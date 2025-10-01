@@ -4,11 +4,10 @@ from pathlib import Path
 from PIL import Image
 import yaml
 
-from core.specs import PreSpec, SplitSpec, HalftoneSpec, DotSpec
-from core.pre import Pre
-from core.split import Split
-from core.halftone import Halftone
-from core.dot import Dot
+from modules.pre import Pre, PreSpec
+from modules.split import Split, SplitSpec
+from modules.halftone import Halftone, HalftoneSpec
+from modules.dot import Dot, DotSpec
 from constants import TEMPLATES_DIR, DEFAULT_TEMPLATE
 
 

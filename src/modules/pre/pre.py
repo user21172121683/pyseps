@@ -1,5 +1,5 @@
 from PIL import Image
-from core.specs import PreSpec
+from .spec import PreSpec
 
 
 class Pre:

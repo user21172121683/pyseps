@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from PIL import Image, ImageOps
 import numpy as np
 
-from core.specs import SplitSpec
+from .spec import SplitSpec
 
 
 class Split(ABC):

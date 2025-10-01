@@ -5,9 +5,9 @@ from typing import Iterator
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 import numpy as np
 
-from core.specs import HalftoneSpec
-from core.dot import Dot
 from utils.helpers import norm_intensity
+from modules.dot import Dot
+from .spec import HalftoneSpec
 
 
 class Halftone(ABC):

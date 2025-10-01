@@ -3,7 +3,7 @@ import math
 
 from PIL import ImageDraw
 
-from core.specs import DotSpec
+from .spec import DotSpec
 
 
 class Dot(ABC):
