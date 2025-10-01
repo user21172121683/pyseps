@@ -4,7 +4,7 @@ from core.sep import Sep
 
 class AppCLI:
     def __init__(self):
-        self.parser = argparse.ArgumentParser(description="My Tool CLI")
+        self.parser = argparse.ArgumentParser(description="pyseps CLI")
         self._setup_arguments()
 
     def _setup_arguments(self):
