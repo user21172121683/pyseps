@@ -3,6 +3,7 @@ import math
 
 from PIL import ImageDraw
 
+from core.registry import MODULE_REGISTRY
 from .spec import DotSpec
 
 
@@ -20,7 +21,7 @@ class Dot(ABC):
         center: tuple[float, float],
         size: float,
         angle: float,
-        intensity: float
+        intensity: float,
     ):
         if self.spec.gradient:
             self._draw_concentric(
@@ -99,6 +100,7 @@ class Dot(ABC):
         pass
 
 
+@MODULE_REGISTRY.register("round", "round dot")
 class RoundDot(Dot):
     """Simple round dot."""
 
@@ -117,6 +119,7 @@ class RoundDot(Dot):
         canvas.ellipse(bbox, fill=fill)
 
 
+@MODULE_REGISTRY.register("square", "square dot")
 class SquareDot(Dot):
     """Simple square dot."""
 
@@ -147,6 +150,7 @@ class SquareDot(Dot):
         canvas.polygon(corners, fill=fill)
 
 
+@MODULE_REGISTRY.register("elliptical", "ellipse", "elliptical dot")
 class EllipticalDot(Dot):
     """Asymmetrically modulated elliptical dot."""
 

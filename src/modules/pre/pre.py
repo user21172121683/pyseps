@@ -1,7 +1,10 @@
 from PIL import Image
+
+from core.registry import MODULE_REGISTRY
 from .spec import PreSpec
 
 
+@MODULE_REGISTRY.register()
 class Pre:
     def __init__(self, spec: PreSpec):
         self.spec = spec

@@ -5,7 +5,7 @@ from typing import Iterator
 from PIL import Image, ImageDraw, ImageFilter, ImageOps
 import numpy as np
 
-from utils.helpers import norm_intensity
+from core.registry import MODULE_REGISTRY
 from modules.dot import Dot
 from .spec import HalftoneSpec
 
@@ -38,7 +38,7 @@ class Halftone(ABC):
                 continue
 
             avg = np.mean(block)
-            intensity = max(0.0, min(1.0, norm_intensity(int(avg))))
+            intensity = max(0.0, min(1.0, max(0.0, min(1.0, int(avg) / 255.0))))
 
             dot.draw(
                 canvas=canvas,
@@ -100,6 +100,7 @@ class Halftone(ABC):
         raise NotImplementedError
 
 
+@MODULE_REGISTRY.register("am", "amplitude", "amplitude modulation")
 class AMHalftone(Halftone):
     """Uniform cell grid."""
 
@@ -152,6 +153,7 @@ class AMHalftone(Halftone):
                     yield x, y
 
 
+@MODULE_REGISTRY.register("dither", "floyd", "floyd-steinberg", "floydsteinberg")
 class DitherHalftone(Halftone):
     """Floyd-Steinberg dithered cell grid."""
 
@@ -197,6 +199,7 @@ class DitherHalftone(Halftone):
                     yield (x, y)
 
 
+@MODULE_REGISTRY.register("threshold")
 class ThresholdHalftone(Halftone):
     """Threshold-based halftone."""
 
