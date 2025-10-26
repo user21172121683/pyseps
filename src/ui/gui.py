@@ -1,2 +1,0 @@
-class AppGUI:
-    pass

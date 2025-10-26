@@ -18,14 +18,14 @@ class AppCLI:
     def handle(self, args):
         sep = Sep(args.file)
 
-        sep.generate()
-
         if args.template:
             try:
                 sep.import_template(args.template)
             except Exception as e:
                 print(f"Error importing template: {e}")
                 return
+
+        sep.generate()
 
         try:
             sep.save()
