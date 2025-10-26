@@ -162,10 +162,17 @@ class DitherHalftone(Halftone):
     ) -> Iterator[tuple[float, float]]:
         spacing = int(self.spacing)
         w, h = resized_image.size
+        theta = math.radians(angle)
+
+        # Rotate image for halftone screen angle
+        rotated = resized_image.rotate(
+            angle, resample=Image.Resampling.BICUBIC, expand=True
+        )
+        rw, rh = rotated.size
 
         # Downscale to dot grid size
-        small = resized_image.resize(
-            (w // spacing, h // spacing),
+        small = rotated.resize(
+            (rw // spacing, rh // spacing),
             resample=Image.Resampling.LANCZOS,
         ).convert("L")
 
@@ -173,7 +180,7 @@ class DitherHalftone(Halftone):
         height, width = arr.shape
         out = np.zeros_like(arr)
 
-        # Floyd-Steinberg error diffusion
+        # Apply Floyd-Steinberg Dithering
         for y in range(height):
             for x in range(width):
                 old_pixel = arr[y, x]
@@ -190,13 +197,32 @@ class DitherHalftone(Halftone):
                 if x + 1 < width and y + 1 < height:
                     arr[y + 1, x + 1] += error * 1 / 16
 
-        # Yield positions for dots where dither map is "on"
+        # Yield positions for dots, rotating back to original image space
+        cos_theta = math.cos(theta)
+        sin_theta = math.sin(theta)
+
+        # Center of the rotated image
+        rcx = rw / 2
+        rcy = rh / 2
+
+        # Center of original image (for inverse mapping)
+        ocx = w / 2
+        ocy = h / 2
+
         for j in range(height):
             for i in range(width):
                 if out[j, i] >= 1.0:
-                    x = (i + 0.5) * spacing
-                    y = (j + 0.5) * spacing
-                    yield (x, y)
+                    # Position in rotated space
+                    rx = (i + 0.5) * spacing
+                    ry = (j + 0.5) * spacing
+
+                    # Rotate back to original image space
+                    dx = rx - rcx
+                    dy = ry - rcy
+                    ox = dx * cos_theta - dy * sin_theta + ocx
+                    oy = dx * sin_theta + dy * cos_theta + ocy
+
+                    yield (ox, oy)
 
 
 @MODULE_REGISTRY.register("threshold")
