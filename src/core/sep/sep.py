@@ -2,7 +2,7 @@ from pathlib import Path
 
 from PIL import Image
 
-from constants import DEFAULT_TEMPLATE, TEMPLATES_DIR
+from constants import DEFAULT_TEMPLATE, TEMPLATES_DIR, DEFAULT_OUTPUT_DIR
 
 from core.fileops import (
     load_image_and_template,
@@ -44,7 +44,7 @@ class Sep:
         if local_template:
             self.import_template(local_template)
 
-    def save(self, output_folder: str = None):
+    def save(self, output_folder: str = DEFAULT_OUTPUT_DIR):
         save_separations(
             self.separations, self.folder, self.spec.halftone_spec.dpi, output_folder
         )

@@ -23,7 +23,7 @@ def load_image_and_template(image_path: str | Path):
     return image, folder, local_template
 
 
-def save_separations(separations, folder: Path, dpi: int, output_folder: str = None):
+def save_separations(separations, folder: Path, dpi: int, output_folder: str = DEFAULT_OUTPUT_DIR):
     if not separations:
         raise RuntimeError("No separations to save.")
 
