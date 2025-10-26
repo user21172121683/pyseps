@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 @dataclass
 class SplitSpec:
-    tones: tuple[tuple[int, int, int]] = field(
+    tones: tuple[tuple[int, int, int]] | None = field(
         default_factory=lambda: (
             (0, 255, 255),
             (255, 0, 255),

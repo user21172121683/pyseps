@@ -10,6 +10,7 @@ class ProcessSplit(SplitBase):
     def split(self, image):
         """Split CMYK image into C, M, Y, K channels."""
         image = self._ensure_mode(image, "CMYK")
+        self.spec.tones = ((255, 0, 0), (0, 255, 0), (0, 0, 255))
         c, m, y, k = image.split()
         return {"C": c, "M": m, "Y": y, "K": k}
 
@@ -20,6 +21,13 @@ class RGBSplit(SplitBase):
         """Split image into R, G, B (and A) channels."""
         image = self._ensure_mode(image, "RGBA" if image.mode == "RGBA" else "RGB")
         channels = image.split()
+
+        self.spec.tones = (
+            (0, 255, 255),
+            (255, 0, 255),
+            (255, 255, 0),
+            (0, 0, 0),
+        )
 
         r, g, b = channels[:3]
 
@@ -36,6 +44,7 @@ class LSplit(SplitBase):
     def split(self, image):
         """Return grayscale image."""
         image = self._ensure_mode(image, "L")
+        self.spec.tones = None
         l = ImageOps.invert(image)
         return {"L": l}
 

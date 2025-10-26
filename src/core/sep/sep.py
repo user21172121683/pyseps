@@ -1,6 +1,7 @@
 from pathlib import Path
 
 from PIL import Image
+import numpy as np
 
 from constants import DEFAULT_TEMPLATE, TEMPLATES_DIR, DEFAULT_OUTPUT_DIR
 
@@ -20,6 +21,7 @@ class Sep:
         self.image: Image.Image | None = None
         self.folder: Path | None = None
         self.separations: dict[str, tuple[Image.Image, Image.Image]] = {}
+        self.preview: Image.Image | None = None
 
         try:
             self.import_template(DEFAULT_TEMPLATE)
@@ -44,10 +46,64 @@ class Sep:
         if local_template:
             self.import_template(local_template)
 
-    def save(self, output_folder: str = DEFAULT_OUTPUT_DIR):
+    def save(self, output_folder: Path | str = DEFAULT_OUTPUT_DIR):
         save_separations(
             self.separations, self.folder, self.spec.halftone_spec.dpi, output_folder
         )
+
+    def colorize_preview(self):
+        if not self.image:
+            return
+        if not self.separations:
+            return
+        if not self.spec.split_spec.tones:
+            return
+
+        try:
+            first_key = next(iter(self.separations))
+
+            # Unpack the halftone from the first separation
+            first_entry = self.separations[first_key]
+            if not (isinstance(first_entry, tuple) and len(first_entry) == 2):
+                return
+            halftone = first_entry[1]
+
+            width, height = halftone.size
+
+            # Create blank numpy array for RGB image, initialized with substrate color
+            image_array = np.full(
+                (height, width, 3), self.spec.split_spec.substrate, dtype=np.uint8
+            )
+
+            # Check if tones is list and substrate is tuple of length 3
+            if not isinstance(self.spec.split_spec.tones, (list, tuple)):
+                return
+            if not all(len(tone) == 3 for tone in self.spec.split_spec.tones):
+                return
+            if not (
+                isinstance(self.spec.split_spec.substrate, (list, tuple))
+                and len(self.spec.split_spec.substrate) == 3
+            ):
+                return
+
+            # Process each separation and apply tones where needed
+            for i, (_, (_, halftone)) in enumerate(self.separations.items()):
+
+                arr = np.array(halftone)
+
+                # Check arr shape matches image_array's first two dims
+                if arr.shape != image_array.shape[:2]:
+                    return
+
+                # Apply tones where arr == 0
+                mask0 = arr == 0
+                image_array[mask0] = self.spec.split_spec.tones[i]
+
+            # Convert numpy array to image and save it
+            self.preview = Image.fromarray(image_array)
+
+        except Exception as e:
+            print(f"Exception occurred: {e}")
 
     def generate(self):
         if self.image is None:
@@ -57,11 +113,12 @@ class Sep:
 
         try:
             self.separations = pipeline.run(self.image)
+            self.colorize_preview()
         except Exception as e:
             raise RuntimeError(f"Failed to generate separations: {e}") from e
 
     def export_template(
-        self, filename: str = "template.yaml", folder: Path = TEMPLATES_DIR
+        self, filename: str = "template.yaml", folder: Path | str = TEMPLATES_DIR
     ):
         export_template(filename=filename, folder=folder, **self.spec.__dict__)
 
