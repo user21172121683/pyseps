@@ -1,31 +1,12 @@
-from abc import ABC, abstractmethod
-
 from PIL import Image, ImageOps
 import numpy as np
 
 from core.registry import MODULE_REGISTRY
-from .spec import SplitSpec
-
-
-class Split(ABC):
-    def __init__(self, spec: SplitSpec):
-        self.spec = spec
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(spec={repr(self.spec)})"
-
-    def _ensure_mode(self, image, mode):
-        if image.mode.upper() != mode:
-            image = image.convert(mode)
-        return image
-
-    @abstractmethod
-    def split(self, image):
-        pass
+from .base import SplitBase
 
 
 @MODULE_REGISTRY.register("process", "cmyk")
-class ProcessSplit(Split):
+class ProcessSplit(SplitBase):
     def split(self, image):
         """Split CMYK image into C, M, Y, K channels."""
         image = self._ensure_mode(image, "CMYK")
@@ -34,7 +15,7 @@ class ProcessSplit(Split):
 
 
 @MODULE_REGISTRY.register("rgb")
-class RGBSplit(Split):
+class RGBSplit(SplitBase):
     def split(self, image):
         """Split image into R, G, B (and A) channels."""
         image = self._ensure_mode(image, "RGBA" if image.mode == "RGBA" else "RGB")
@@ -51,7 +32,7 @@ class RGBSplit(Split):
 
 
 @MODULE_REGISTRY.register("gray", "grey", "grayscale", "greyscale")
-class LSplit(Split):
+class LSplit(SplitBase):
     def split(self, image):
         """Return grayscale image."""
         image = self._ensure_mode(image, "L")
@@ -62,7 +43,7 @@ class LSplit(Split):
 @MODULE_REGISTRY.register(
     "simulatedprocess", "simulated process", "sim", "simprocess", "simp"
 )
-class SimProcessSplit(Split):
+class SimProcessSplit(SplitBase):
     def split(self, image):
         """Simulate spot color separation using color distance,
         optionally accounting for a substrate color."""
@@ -107,7 +88,7 @@ class SimProcessSplit(Split):
 
 
 @MODULE_REGISTRY.register("spot")
-class SpotSplit(Split):
+class SpotSplit(SplitBase):
     def split(self, image):
         """Splitarate image into spot color channels based on color similarity (within threshold),
         optionally avoiding substrate-colored regions."""
