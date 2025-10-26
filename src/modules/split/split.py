@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from PIL import Image, ImageOps
 import numpy as np
 
+from core.registry import MODULE_REGISTRY
 from .spec import SplitSpec
 
 
@@ -23,6 +24,7 @@ class Split(ABC):
         pass
 
 
+@MODULE_REGISTRY.register("process", "cmyk")
 class ProcessSplit(Split):
     def split(self, image):
         """Split CMYK image into C, M, Y, K channels."""
@@ -31,6 +33,7 @@ class ProcessSplit(Split):
         return {"C": c, "M": m, "Y": y, "K": k}
 
 
+@MODULE_REGISTRY.register("rgb")
 class RGBSplit(Split):
     def split(self, image):
         """Split image into R, G, B (and A) channels."""
@@ -47,6 +50,7 @@ class RGBSplit(Split):
         return separations
 
 
+@MODULE_REGISTRY.register("gray", "grey", "grayscale", "greyscale")
 class LSplit(Split):
     def split(self, image):
         """Return grayscale image."""
@@ -55,6 +59,9 @@ class LSplit(Split):
         return {"L": l}
 
 
+@MODULE_REGISTRY.register(
+    "simulatedprocess", "simulated process", "sim", "simprocess", "simp"
+)
 class SimProcessSplit(Split):
     def split(self, image):
         """Simulate spot color separation using color distance,
@@ -99,6 +106,7 @@ class SimProcessSplit(Split):
         return separations
 
 
+@MODULE_REGISTRY.register("spot")
 class SpotSplit(Split):
     def split(self, image):
         """Splitarate image into spot color channels based on color similarity (within threshold),

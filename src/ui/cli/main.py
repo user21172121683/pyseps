@@ -1,4 +1,6 @@
 import argparse
+
+from constants import TEMPLATES_DIR
 from core.sep import Sep
 
 
@@ -20,7 +22,7 @@ class AppCLI:
 
         if args.template:
             try:
-                sep.import_template(args.template)
+                sep.import_template(TEMPLATES_DIR / args.template)
             except Exception as e:
                 print(f"Error importing template: {e}")
                 return
