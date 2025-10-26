@@ -5,12 +5,12 @@ pre:
 split:
     type: ProcessSplit
     tones:
-        red: [255, 0, 0]
-        blue: [0, 255, 0]
-        yellow: [255, 255, 0]
-        black: [0, 0, 0]
+        - [0, 255, 255]
+        - [255, 0, 255]
+        - [255, 255, 0]
+        - [0, 0, 0]
     threshold: 30
-    substrate: [0, 0, 0]
+    substrate: [255, 255, 255]
     angles: [15, 75, 0, 45]
 halftone:
     type: AMHalftone
@@ -20,7 +20,6 @@ halftone:
     hardmix: false
 dot:
     type: RoundDot
-    fill: 0
     gradient: false
     gain: 0.0
     modulate: true
