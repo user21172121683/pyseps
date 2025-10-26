@@ -12,6 +12,7 @@ class AppCLI:
     def _setup_arguments(self):
         self.parser.add_argument("-f", "--file", required=True, help="Input file")
         self.parser.add_argument("-t", "--template", help="Template file")
+        self.parser.add_argument("-o", "--output", help="Output folder")
 
     def run(self):
         args = self.parser.parse_args()
@@ -30,6 +31,6 @@ class AppCLI:
         sep.generate()
 
         try:
-            sep.save()
+            sep.save(output_folder=args.output)
         except Exception as e:
             print(f"Error saving: {e}")
