@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
 from pathlib import Path
 from PIL import Image
 from constants import DEFAULT_OUTPUT_DIR
@@ -23,7 +25,9 @@ def load_image_and_template(image_path: str | Path):
     return image, folder, local_template
 
 
-def save_separations(separations, folder: Path, dpi: int, output_folder: str = DEFAULT_OUTPUT_DIR):
+def save_separations(
+    separations, folder: Path, dpi: int, output_folder: str = DEFAULT_OUTPUT_DIR
+):
     if not separations:
         raise RuntimeError("No separations to save.")
 
