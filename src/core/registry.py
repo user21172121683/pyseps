@@ -19,7 +19,6 @@ class ModuleRegistry:
         """
 
         def decorator(cls: Type) -> Type:
-            # Register aliases
             all_aliases = set(alias.lower() for alias in aliases)
             all_aliases.add(cls.__name__.lower())
 

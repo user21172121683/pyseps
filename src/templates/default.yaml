@@ -1,7 +1,3 @@
-pre:
-    grayscale: false
-    resize: [0, 0]
-    type: Pre
 split:
     type: ProcessSplit
     tones:

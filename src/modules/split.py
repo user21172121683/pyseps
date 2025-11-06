@@ -1,10 +1,43 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-from PIL import Image, ImageOps
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+
 import numpy as np
+from PIL import Image, ImageOps
 
 from core.registry import MODULE_REGISTRY
-from .base import SplitBase
+
+
+@dataclass
+class SplitSpec:
+    tones: tuple[tuple[int, int, int]] | None = field(
+        default_factory=lambda: (
+            (0, 255, 255),
+            (255, 0, 255),
+            (255, 255, 0),
+            (0, 0, 0),
+        )
+    )
+    threshold: int = 30
+    substrate: tuple[int, int, int] = (255, 255, 255)
+    angles: tuple[int, ...] = (15, 75, 0, 45)
+
+class SplitBase(ABC):
+    def __init__(self, spec: SplitSpec):
+        self.spec = spec
+
+    def __repr__(self) -> str:
+        return f"{self.__class__.__name__}(spec={repr(self.spec)})"
+
+    def _ensure_mode(self, image, mode):
+        if image.mode.upper() != mode:
+            image = image.convert(mode)
+        return image
+
+    @abstractmethod
+    def split(self, image):
+        pass
 
 
 @MODULE_REGISTRY.register("process", "cmyk")
@@ -101,7 +134,7 @@ class SimProcessSplit(SplitBase):
 @MODULE_REGISTRY.register("spot")
 class SpotSplit(SplitBase):
     def split(self, image):
-        """Splitarate image into spot color channels based on color similarity (within threshold),
+        """Split image into spot color channels based on color similarity (within threshold),
         optionally avoiding substrate-colored regions."""
 
         rgb_image = self._ensure_mode(image, "RGB")
