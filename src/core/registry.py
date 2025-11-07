@@ -9,16 +9,19 @@ import inspect
 @dataclass
 class ModuleRegistry:
     name: str = "DefaultRegistry"
-    _classes: dict[Type, list[Type]] = field(default_factory=dict)
-    _aliases: dict[str, Type] = field(default_factory=dict)
+    _classes: dict[type, list[type]] = field(default_factory=dict)
+    _aliases: dict[str, type] = field(default_factory=dict)
+    _specs: dict[type, type] = field(default_factory=dict)
 
-    def register(self, *aliases: str) -> Callable[[Type], Type]:
+    def register(
+        self, *aliases: str, spec_cls: type | None = None
+    ) -> Callable[[type], type]:
         """
-        Decorator to register a class with aliases, and index it under
-        any abstract base classes (excluding object/ABC).
+        Decorator to register a class with aliases, index it under
+        its abstract bases, and optionally store its spec class.
         """
 
-        def decorator(cls: Type) -> Type:
+        def decorator(cls: type) -> type:
             all_aliases = set(alias.lower() for alias in aliases)
             all_aliases.add(cls.__name__.lower())
 
@@ -29,15 +32,19 @@ class ModuleRegistry:
                     )
                 self._aliases[alias] = cls
 
+            # Index under ABCs
             for base in inspect.getmro(cls)[1:]:
                 if base in (object, ABC):
                     continue
-
                 if isinstance(base, ABCMeta) and inspect.isabstract(base):
                     if base not in self._classes:
                         self._classes[base] = []
                     if cls not in self._classes[base]:
                         self._classes[base].append(cls)
+
+            # Store the associated spec class
+            if spec_cls is not None:
+                self._specs[cls] = spec_cls
 
             return cls
 
@@ -54,6 +61,10 @@ class ModuleRegistry:
 
     def list_aliases(self) -> dict[str, str]:
         return {alias: cls.__name__ for alias, cls in self._aliases.items()}
+
+    def get_spec_class(self, cls: type) -> type | None:
+        """Return the spec class associated with a module class."""
+        return self._specs.get(cls)
 
 
 MODULE_REGISTRY = ModuleRegistry()
