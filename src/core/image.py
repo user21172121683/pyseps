@@ -51,20 +51,27 @@ class ImageManager:
         output_dir.mkdir(parents=True, exist_ok=True)
 
         for name, (split, halftone) in self.separations.items():
+            use_subfolders = splits and halftones
+
             if splits:
+                split_dir = output_dir / "splits" if use_subfolders else output_dir
+                split_dir.mkdir(parents=True, exist_ok=True)
                 split.save(
-                    output_dir / f"{name}.{fmt}",
+                    split_dir / f"{name}.{fmt}",
                     dpi=(dpi, dpi),
                     **dict(options["L"].items()),
                 )
+
             if halftones:
+                halftone_dir = output_dir / "halftones" if use_subfolders else output_dir
+                halftone_dir.mkdir(parents=True, exist_ok=True)
                 halftone.save(
-                    output_dir / f"{name}.{fmt}",
+                    halftone_dir / f"{name}.{fmt}",
                     dpi=(dpi, dpi),
                     **dict(options["1"].items()),
                 )
         if preview:
-            preview.save(
+            self.preview.save(
                 output_dir / f"preview.{fmt}",
                 dpi=(dpi, dpi),
                 **dict(options["L"].items()),
