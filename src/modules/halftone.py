@@ -110,7 +110,9 @@ class HalftoneBase(ABC):
         raise NotImplementedError
 
 
-@MODULE_REGISTRY.register("am", "amplitude", "amplitude modulation")
+@MODULE_REGISTRY.register(
+    "am", "amplitude", "amplitude modulation", spec_cls=HalftoneSpec
+)
 class AMHalftone(HalftoneBase):
     """Uniform cell grid."""
 
@@ -163,7 +165,9 @@ class AMHalftone(HalftoneBase):
                     yield x, y
 
 
-@MODULE_REGISTRY.register("dither", "floyd", "floyd-steinberg", "floydsteinberg")
+@MODULE_REGISTRY.register(
+    "dither", "floyd", "floyd-steinberg", "floydsteinberg", spec_cls=HalftoneSpec
+)
 class DitherHalftone(HalftoneBase):
     """Floyd-Steinberg dithered cell grid."""
 
@@ -235,7 +239,7 @@ class DitherHalftone(HalftoneBase):
                     yield (ox, oy)
 
 
-@MODULE_REGISTRY.register("threshold")
+@MODULE_REGISTRY.register("threshold", spec_cls=HalftoneSpec)
 class ThresholdHalftone(HalftoneBase):
     """Threshold-based halftone."""
 

@@ -23,6 +23,32 @@ class SplitSpec:
     substrate: tuple[int, int, int] = (255, 255, 255)
     angles: tuple[int, ...] = (15, 75, 0, 45)
 
+
+@dataclass
+class ProcessSplitSpec(SplitSpec):
+    pass
+
+
+@dataclass
+class RGBSplitSpec(SplitSpec):
+    pass
+
+
+@dataclass
+class LSplitSpec(SplitSpec):
+    pass
+
+
+@dataclass
+class SimProcessSplitSpec(SplitSpec):
+    pass
+
+
+@dataclass
+class SpotSplitSpec(SplitSpec):
+    pass
+
+
 class SplitBase(ABC):
     def __init__(self, spec: SplitSpec):
         self.spec = spec
@@ -40,52 +66,48 @@ class SplitBase(ABC):
         pass
 
 
-@MODULE_REGISTRY.register("process", "cmyk")
+@MODULE_REGISTRY.register("process", "cmyk", spec_cls=ProcessSplitSpec)
 class ProcessSplit(SplitBase):
     def split(self, image):
         """Split CMYK image into C, M, Y, K channels."""
+
+        self.spec.tones = ((0, 255, 255), (255, 0, 255), (255, 255, 0), (0, 0, 0))
         image = self._ensure_mode(image, "CMYK")
-        self.spec.tones = ((255, 0, 0), (0, 255, 0), (0, 0, 255))
         c, m, y, k = image.split()
         return {"C": c, "M": m, "Y": y, "K": k}
 
 
-@MODULE_REGISTRY.register("rgb")
+@MODULE_REGISTRY.register("rgb", spec_cls=RGBSplitSpec)
 class RGBSplit(SplitBase):
     def split(self, image):
-        """Split image into R, G, B (and A) channels."""
-        image = self._ensure_mode(image, "RGBA" if image.mode == "RGBA" else "RGB")
-        channels = image.split()
+        """Split image into R, G, B channels."""
 
-        self.spec.tones = (
-            (0, 255, 255),
-            (255, 0, 255),
-            (255, 255, 0),
-            (0, 0, 0),
-        )
-
-        r, g, b = channels[:3]
-
-        separations = {"R": r, "G": g, "B": b}
-
-        if image.mode == "RGBA" and len(channels) == 4:
-            separations["A"] = channels[3]
-
-        return separations
+        self.spec.tones = ((255, 0, 0), (0, 255, 0), (0, 0, 255))
+        image = self._ensure_mode(image, "RGB")
+        r, g, b = image.split()
+        return {"R": r, "G": g, "B": b}
 
 
-@MODULE_REGISTRY.register("gray", "grey", "grayscale", "greyscale")
+@MODULE_REGISTRY.register(
+    "gray", "grey", "grayscale", "greyscale", "l", spec_cls=LSplitSpec
+)
 class LSplit(SplitBase):
     def split(self, image):
         """Return grayscale image."""
-        image = self._ensure_mode(image, "L")
+
         self.spec.tones = None
+        image = self._ensure_mode(image, "L")
         l = ImageOps.invert(image)
         return {"L": l}
 
 
 @MODULE_REGISTRY.register(
-    "simulatedprocess", "simulated process", "sim", "simprocess", "simp"
+    "simulatedprocess",
+    "simulated process",
+    "sim",
+    "simprocess",
+    "simp",
+    spec_cls=SimProcessSplitSpec,
 )
 class SimProcessSplit(SplitBase):
     def split(self, image):
@@ -131,7 +153,7 @@ class SimProcessSplit(SplitBase):
         return separations
 
 
-@MODULE_REGISTRY.register("spot")
+@MODULE_REGISTRY.register("spot", spec_cls=SpotSplitSpec)
 class SpotSplit(SplitBase):
     def split(self, image):
         """Split image into spot color channels based on color similarity (within threshold),

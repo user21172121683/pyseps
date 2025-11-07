@@ -109,7 +109,7 @@ class DotBase(ABC):
         pass
 
 
-@MODULE_REGISTRY.register("round", "round dot")
+@MODULE_REGISTRY.register("round", "round dot", spec_cls=DotSpec)
 class RoundDot(DotBase):
     """Simple round dot."""
 
@@ -128,7 +128,7 @@ class RoundDot(DotBase):
         canvas.ellipse(bbox, fill=fill)
 
 
-@MODULE_REGISTRY.register("square", "square dot")
+@MODULE_REGISTRY.register("square", "square dot", spec_cls=DotSpec)
 class SquareDot(DotBase):
     """Simple square dot."""
 
@@ -159,7 +159,7 @@ class SquareDot(DotBase):
         canvas.polygon(corners, fill=fill)
 
 
-@MODULE_REGISTRY.register("elliptical", "ellipse", "elliptical dot")
+@MODULE_REGISTRY.register("elliptical", "ellipse", "elliptical dot", spec_cls=DotSpec)
 class EllipticalDot(DotBase):
     """Asymmetrically modulated elliptical dot."""
 
