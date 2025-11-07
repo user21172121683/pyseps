@@ -84,6 +84,7 @@ class AppCLI:
             seps.save(
                 splits=args.splits,
                 halftones=args.halftones,
+                preview=args.preview,
                 fmt=args.format,
                 output_folder=Path(args.output),
             )
