@@ -15,7 +15,7 @@ class AppCLI:
         self._setup_arguments()
 
     def _setup_arguments(self):
-        self.parser.add_argument("-f", "--file", required=True, help="Input file")
+        self.parser.add_argument("file", help="Input file")
         opt_group = self.parser.add_argument_group(
             "Optional Features", "Enable or disable extra features"
         )
@@ -45,7 +45,7 @@ class AppCLI:
             help="Enable saving colorized preview",
         )
         opt_group.add_argument(
-            "-F",
+            "-f",
             "--format",
             choices=list(Globals.IMAGE_FORMATS.keys()),
             default="tiff",
