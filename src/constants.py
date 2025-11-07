@@ -42,6 +42,6 @@ class Globals:
 class Defaults:
     OUTPUT = "seps"
     FORMAT = "tiff"
-    SAVE_HALFTONES = True
+    SAVE_HALFTONES = False
     SAVE_SPLITS = False
     SAVE_PREVIEW = False
