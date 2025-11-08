@@ -9,9 +9,19 @@ from constants import Globals, Defaults
 
 
 @dataclass
+class Separation:
+    name: str
+    split: Image.Image
+    screen: list[tuple[float, float, float]]
+    halftone: Image.Image
+    angle: int
+    tone: tuple[int, int, int]
+
+
+@dataclass
 class ImageManager:
     image: Image.Image | None = None
-    separations: dict[str, tuple[Image.Image, Image.Image]] | None = None
+    separations: list[Separation] | None = None
     preview: Image.Image | None = None
     folder: Path | None = None
 
@@ -31,7 +41,7 @@ class ImageManager:
         self,
         *,
         splits: bool = Defaults.SAVE_SPLITS,
-        screens: bool = Defaults.SAVE_HALFTONES,
+        halftones: bool = Defaults.SAVE_HALFTONES,
         preview: bool = Defaults.SAVE_PREVIEW,
         fmt: str = Defaults.FORMAT,
         dpi: int = 300,
@@ -50,23 +60,25 @@ class ImageManager:
         output_dir = self.folder / output_folder
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        for name, (split, screen) in self.separations.items():
-            use_subfolders = splits and screens
+        for separation in self.separations:
+            use_subfolders = splits and halftones
 
             if splits:
                 split_dir = output_dir / "splits" if use_subfolders else output_dir
                 split_dir.mkdir(parents=True, exist_ok=True)
-                split.save(
-                    split_dir / f"{name}.{fmt}",
+                separation.split.save(
+                    split_dir / f"{separation.name}.{fmt}",
                     dpi=(dpi, dpi),
                     **dict(options["L"].items()),
                 )
 
-            if screens:
-                screen_dir = output_dir / "screens" if use_subfolders else output_dir
-                screen_dir.mkdir(parents=True, exist_ok=True)
-                screen.save(
-                    screen_dir / f"{name}.{fmt}",
+            if halftones:
+                halftone_dir = (
+                    output_dir / "halftones" if use_subfolders else output_dir
+                )
+                halftone_dir.mkdir(parents=True, exist_ok=True)
+                separation.halftone.save(
+                    halftone_dir / f"{separation.name}.{fmt}",
                     dpi=(dpi, dpi),
                     **dict(options["1"].items()),
                 )

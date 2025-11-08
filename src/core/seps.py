@@ -24,7 +24,7 @@ class Seps:
         self,
         *,
         splits: bool = Defaults.SAVE_SPLITS,
-        screens: bool = Defaults.SAVE_HALFTONES,
+        halftones: bool = Defaults.SAVE_HALFTONES,
         preview: bool = Defaults.SAVE_PREVIEW,
         fmt: str = Defaults.FORMAT,
         dpi: int = 300,
@@ -32,7 +32,7 @@ class Seps:
     ):
         self.image.save(
             splits=splits,
-            screens=screens,
+            halftones=halftones,
             preview=preview,
             fmt=fmt,
             dpi=dpi,
@@ -50,4 +50,7 @@ class Seps:
             raise RuntimeError("No image loaded. Use load() first.")
         self.image.separations = self.pipeline.process_image(
             image=self.image.image, template=self.template
+        )
+        self.image.preview = self.pipeline.create_preview(
+            separations=self.image.separations, substrate=self.template.split_spec.substrate
         )
