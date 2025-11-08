@@ -6,68 +6,92 @@ import numpy as np
 from modules import Halftone
 
 from .template import TemplateManager
-from .image import Separation
+from .image import ImageManager, Separation
 
 
 class Pipeline:
-    """Stateless image separation and preview generation."""
+    """Image separation and preview generation pipeline."""
 
-    @staticmethod
-    def process_image(
-        image: Image.Image, template: TemplateManager
-    ) -> list[Separation]:
-        """Generate separations with screens from a given image and template."""
+    def __init__(self, image: ImageManager, template: TemplateManager):
+        self.image = image
+        self.template = template
 
-        split = template.split_type(template.split_spec)
-        screen = template.screen_type(template.screen_spec)
-        dot = template.dot_type(template.dot_spec)
-        halftone = Halftone(
-            dot=dot, hardmix=screen.spec.hardmix, spacing=screen.spacing
+        # Internal modules
+        self._split = None
+        self._screen = None
+        self._halftone = None
+
+    def run(self):
+        """Orchestrates the full pipeline."""
+
+        self._instantiate_modules()
+        self._process_image()
+        self._render_preview()
+
+    def _instantiate_modules(self):
+        """Create split, screen, and halftone instances from template specs."""
+
+        self._split = self.template.split_type(self.template.split_spec)
+        self._screen = self.template.screen_type(self.template.screen_spec)
+        dot = self.template.dot_type(self.template.dot_spec)
+        self._halftone = Halftone(
+            dot=dot,
+            hardmix=self._screen.spec.hardmix,
+            spacing=self._screen.spacing,
         )
 
-        split_result = split.split(image)
-        angles = split.spec.angles
+    def _process_image(self):
+        """Split the input image and compute screen and halftone for each separation."""
 
-        separations = []
+        split_result = self._split.split(self.image.original)
+        angles = self._split.spec.angles
+        tones = self._split.spec.tones
+
+        self.image.separations = []
+
         for i, (name, split_img) in enumerate(split_result.items()):
             angle = angles[i % len(angles)]
-            screen_img = screen.compute_intensity_map(split_img, angle)
-            halftone_img = halftone.render(
-                intensity_map=screen_img,
+            tone = tones[i]
+
+            # Compute screen
+            intensity_map = self._screen.compute_intensity_map(split_img, angle)
+
+            # Compute halftone
+            halftone_img = self._halftone.render(
+                intensity_map=intensity_map,
                 base_image=split_img,
                 angle=angle,
-                ppi=screen.spec.ppi,
-                dpi=screen.spec.dpi,
+                ppi=self._screen.spec.ppi,
+                dpi=self._screen.spec.dpi,
             )
+
             separation = Separation(
                 name=name,
                 split=split_img,
-                screen=screen_img,
+                screen=intensity_map,
                 halftone=halftone_img,
                 angle=angle,
-                tone=split.spec.tones[i],
+                tone=tone,
             )
-            separations.append(separation)
+            self.image.separations.append(separation)
 
-        return separations
-
-    @staticmethod
-    def create_preview(
-        separations: list[Separation],
-        substrate: tuple[int, int, int],
-    ) -> Image.Image | None:
+    def _render_preview(self) -> None:
         """Combine separations into a preview image."""
-
-        if not separations or not substrate:
-            return None
+        if not self.image.separations or not self.template.split_spec.substrate:
+            self.image.preview = None
+            return
 
         try:
-            height, width = separations[0].halftone.shape
+            height, width = self.image.separations[0].halftone.shape
             image_array = (
-                np.full((height, width, 3), substrate, dtype=np.float32) / 255.0
+                np.full(
+                    (height, width, 3),
+                    self.template.split_spec.substrate,
+                    dtype=np.float32,
+                )
+                / 255.0
             )
-
-            for separation in separations:
+            for separation in self.image.separations:
                 halftone = separation.halftone.astype(np.float32)
                 mask = 1.0 - (halftone / 255.0)
                 mask = mask[..., np.newaxis]
@@ -75,8 +99,8 @@ class Pipeline:
                 tone = np.array(separation.tone, dtype=np.float32) / 255.0
 
                 image_array = image_array * (1 - mask * (1 - tone))
-
-            return Image.fromarray(np.clip(image_array * 255, 0, 255).astype(np.uint8))
-
+                self.image.preview = Image.fromarray(
+                    np.clip(image_array * 255, 0, 255).astype(np.uint8)
+                )
         except Exception as e:
             raise RuntimeError(f"Pipeline preview generation failed: {e}") from e

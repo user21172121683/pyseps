@@ -21,7 +21,7 @@ class Separation:
 
 @dataclass
 class ImageManager:
-    image: Image.Image | None = None
+    original: Image.Image | None = None
     separations: list[Separation] | None = None
     preview: Image.Image | None = None
     folder: Path | None = None
@@ -33,7 +33,7 @@ class ImageManager:
             raise FileNotFoundError(f"Image file not found: {path}")
 
         with Image.open(str(path)) as img:
-            self.image = img.copy()
+            self.original = img.copy()
 
         self.folder = path.parent.resolve()
         print(f"Loaded image at {path}")

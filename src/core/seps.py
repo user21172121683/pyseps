@@ -15,7 +15,7 @@ class Seps:
     def __init__(self):
         self.template = TemplateManager()
         self.image = ImageManager()
-        self.pipeline = Pipeline()
+        self.pipeline = Pipeline(image=self.image, template=self.template)
 
     def load(self, image_path: Path):
         self.image.load(path=image_path)
@@ -46,11 +46,6 @@ class Seps:
         self.template.load_yaml(path=path)
 
     def generate(self):
-        if not self.image.image:
+        if not self.image.original:
             raise RuntimeError("No image loaded. Use load() first.")
-        self.image.separations = self.pipeline.process_image(
-            image=self.image.image, template=self.template
-        )
-        self.image.preview = self.pipeline.create_preview(
-            separations=self.image.separations, substrate=self.template.split_spec.substrate
-        )
+        self.pipeline.run()
