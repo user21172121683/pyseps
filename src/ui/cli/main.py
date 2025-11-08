@@ -57,6 +57,12 @@ class AppCLI:
         self.handle(args)
 
     def handle(self, args):
+        if not (args.splits or args.halftones or args.preview):
+            print(
+                "You should enable at least -S/--splits, -H/--halftones, or -P/--preview."
+            )
+            return
+
         seps = Seps()
         file = Path(args.file).resolve()
         seps.load(file)
