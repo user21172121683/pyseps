@@ -13,17 +13,17 @@ from modules.dot import DotBase
 
 
 @dataclass
-class HalftoneSpec:
+class ScreenSpec:
     lpi: int = 55
     dpi: int = 1200
     ppi: int | None = None
     hardmix: bool = False
 
 
-class HalftoneBase(ABC):
-    """Base halftone."""
+class ScreenBase(ABC):
+    """Base screen."""
 
-    def __init__(self, spec: HalftoneSpec):
+    def __init__(self, spec: ScreenSpec):
         self.spec = spec
         self.spacing = spec.dpi / spec.lpi
 
@@ -36,8 +36,8 @@ class HalftoneBase(ABC):
         resized_image = self._resize(image)
 
         mode = "L" if self.spec.hardmix else "1"
-        halftone = Image.new(mode, resized_image.size, "white")
-        canvas = ImageDraw.Draw(halftone)
+        screen = Image.new(mode, resized_image.size, "white")
+        canvas = ImageDraw.Draw(screen)
 
         pixels = np.array(resized_image)
         width, height = resized_image.size
@@ -59,9 +59,9 @@ class HalftoneBase(ABC):
             )
 
         if self.spec.hardmix:
-            halftone = self._hardmix(resized_image, halftone)
+            screen = self._hardmix(resized_image, screen)
 
-        return halftone
+        return screen
 
     def _resize(self, image: Image) -> tuple[Image, int]:
         """Resize image to match spec.dpi and return resized image."""
@@ -92,10 +92,10 @@ class HalftoneBase(ABC):
 
         return pixels[y0_clip:y1_clip, x0_clip:x1_clip]
 
-    def _hardmix(self, resized_image, halftone):
+    def _hardmix(self, resized_image, screen):
         base_array = np.array(ImageOps.invert(resized_image), dtype=np.uint16)
         mask_array = np.array(
-            halftone.filter(ImageFilter.GaussianBlur(radius=self.spacing / 10)),
+            screen.filter(ImageFilter.GaussianBlur(radius=self.spacing / 10)),
             dtype=np.uint16,
         )
         combined = base_array + mask_array
@@ -111,9 +111,9 @@ class HalftoneBase(ABC):
 
 
 @MODULE_REGISTRY.register(
-    "am", "amplitude", "amplitude modulation", spec_cls=HalftoneSpec
+    "am", "amplitude", "amplitude modulation", spec_cls=ScreenSpec
 )
-class AMHalftone(HalftoneBase):
+class AMScreen(ScreenBase):
     """Uniform cell grid."""
 
     def _iter_grid_points(self, resized_image, angle=0):
@@ -166,9 +166,9 @@ class AMHalftone(HalftoneBase):
 
 
 @MODULE_REGISTRY.register(
-    "dither", "floyd", "floyd-steinberg", "floydsteinberg", spec_cls=HalftoneSpec
+    "dither", "floyd", "floyd-steinberg", "floydsteinberg", spec_cls=ScreenSpec
 )
-class DitherHalftone(HalftoneBase):
+class DitherScreen(ScreenBase):
     """Floyd-Steinberg dithered cell grid."""
 
     def _iter_grid_points(
@@ -178,7 +178,7 @@ class DitherHalftone(HalftoneBase):
         w, h = resized_image.size
         theta = math.radians(angle)
 
-        # Rotate image for halftone screen angle
+        # Rotate image for screen screen angle
         rotated = resized_image.rotate(
             angle, resample=Image.Resampling.BICUBIC, expand=True
         )
@@ -239,9 +239,9 @@ class DitherHalftone(HalftoneBase):
                     yield (ox, oy)
 
 
-@MODULE_REGISTRY.register("threshold", spec_cls=HalftoneSpec)
-class ThresholdHalftone(HalftoneBase):
-    """Threshold-based halftone."""
+@MODULE_REGISTRY.register("threshold", spec_cls=ScreenSpec)
+class ThresholdScreen(ScreenBase):
+    """Threshold-based screen."""
 
     def _iter_grid_points(
         self, resized_image, angle=0

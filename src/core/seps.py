@@ -24,7 +24,7 @@ class Seps:
         self,
         *,
         splits: bool = Defaults.SAVE_SPLITS,
-        halftones: bool = Defaults.SAVE_HALFTONES,
+        screens: bool = Defaults.SAVE_HALFTONES,
         preview: bool = Defaults.SAVE_PREVIEW,
         fmt: str = Defaults.FORMAT,
         dpi: int = 300,
@@ -32,7 +32,7 @@ class Seps:
     ):
         self.image.save(
             splits=splits,
-            halftones=halftones,
+            screens=screens,
             preview=preview,
             fmt=fmt,
             dpi=dpi,

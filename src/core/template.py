@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, asdict
 from pathlib import Path
 import yaml
 
-from modules import SplitSpec, SplitBase, HalftoneSpec, HalftoneBase, DotSpec, DotBase
+from modules import SplitSpec, SplitBase, ScreenSpec, ScreenBase, DotSpec, DotBase
 
 
 from .registry import MODULE_REGISTRY
@@ -12,14 +12,14 @@ from .registry import MODULE_REGISTRY
 
 @dataclass
 class TemplateManager:
-    """Manages split, halftone, and dot template specifications."""
+    """Manages split, screen, and dot template specifications."""
 
     split_spec: SplitSpec = field(default_factory=SplitSpec)
-    halftone_spec: HalftoneSpec = field(default_factory=HalftoneSpec)
+    screen_spec: ScreenSpec = field(default_factory=ScreenSpec)
     dot_spec: DotSpec = field(default_factory=DotSpec)
 
     split_type: SplitBase | None = None
-    halftone_type: HalftoneBase | None = None
+    screen_type: ScreenBase | None = None
     dot_type: DotBase | None = None
 
     def load_yaml(self, path: Path):
@@ -57,7 +57,7 @@ class TemplateManager:
 
         return {
             "split": serialize(self.split_spec, self.split_type),
-            "halftone": serialize(self.halftone_spec, self.halftone_type),
+            "screen": serialize(self.screen_spec, self.screen_type),
             "dot": serialize(self.dot_spec, self.dot_type),
         }
 
@@ -73,7 +73,7 @@ class TemplateManager:
             return spec, type_cls
 
         self.split_spec, self.split_type = parse_section(data.get("split"), SplitSpec)
-        self.halftone_spec, self.halftone_type = parse_section(
-            data.get("halftone"), HalftoneSpec
+        self.screen_spec, self.screen_type = parse_section(
+            data.get("screen"), ScreenSpec
         )
         self.dot_spec, self.dot_type = parse_section(data.get("dot"), DotSpec)

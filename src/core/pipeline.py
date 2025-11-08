@@ -13,10 +13,10 @@ class Pipeline:
     def process_image(
         image: Image.Image, template: TemplateManager
     ) -> dict[str, tuple[Image.Image, Image.Image]]:
-        """Generate separations with halftones from a given image and template."""
+        """Generate separations with screens from a given image and template."""
 
         split = template.split_type(template.split_spec)
-        halftone = template.halftone_type(template.halftone_spec)
+        screen = template.screen_type(template.screen_spec)
         dot = template.dot_type(template.dot_spec)
 
         split_result = split.split(image)
@@ -25,8 +25,8 @@ class Pipeline:
         separations = {}
         for i, (name, split_img) in enumerate(split_result.items()):
             angle = angles[i % len(angles)]
-            halftone_img = halftone.generate(split_img, dot, angle)
-            separations[name] = (split_img, halftone_img)
+            screen_img = screen.generate(split_img, dot, angle)
+            separations[name] = (split_img, screen_img)
 
         return separations
 
@@ -46,10 +46,10 @@ class Pipeline:
             width, height = first_size
             image_array = np.full((height, width, 3), substrate, dtype=np.uint8)
 
-            for i, (_, (_, halftone)) in enumerate(separations.items()):
-                arr = np.array(halftone.convert("L"))
+            for i, (_, (_, screen)) in enumerate(separations.items()):
+                arr = np.array(screen.convert("L"))
                 if arr.shape != image_array.shape[:2]:
-                    arr = np.array(halftone.resize((width, height)).convert("L"))
+                    arr = np.array(screen.resize((width, height)).convert("L"))
                 mask = arr == 0
                 image_array[mask] = tones[i]
 
