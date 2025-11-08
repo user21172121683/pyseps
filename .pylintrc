@@ -10,3 +10,6 @@ disable=
     R0902,  # too-many-instance-attributes
     W0511,  # fixme
     W0718,  # broad-exception-caught
+
+[TYPECHECK]
+ignored-modules=cairo

@@ -6,7 +6,6 @@ from dataclasses import dataclass
 from typing import Iterator
 
 import numpy as np
-from PIL import Image
 
 from core.registry import MODULE_REGISTRY
 
@@ -30,23 +29,23 @@ class ScreenBase(ABC):
         return f"{self.__class__.__name__}(spec={repr(self.spec)})"
 
     def compute_intensity_map(
-        self, image: Image.Image, angle: float
+        self, image_array: np.ndarray, angle: float
     ) -> list[tuple[float, float, float]]:
         """
         Compute intensity samples across the image.
         Returns a list of (x, y, intensity) tuples.
         """
-        pixels = np.array(image)
-        width, height = image.size
+
+        height, width = image_array.shape
         intensity_map = []
 
-        for x, y in self._iter_grid_points(image, angle):
-            block = self._get_clipped_block(x, y, width, height, pixels)
+        for x, y in self._iter_grid_points(image_array, angle):
+            block = self._get_clipped_block(x, y, width, height, image_array)
             if block is None or block.size == 0:
                 continue
 
             avg = np.mean(block)
-            intensity = max(0.0, min(1.0, int(avg) / 255.0))
+            intensity = max(0.0, min(1.0, float(avg) / 255.0))
             intensity_map.append((x, y, intensity))
 
         return intensity_map
@@ -70,7 +69,9 @@ class ScreenBase(ABC):
         return pixels[y0_clip:y1_clip, x0_clip:x1_clip]
 
     @abstractmethod
-    def _iter_grid_points(self, image, angle=0) -> Iterator[tuple[float, float]]:
+    def _iter_grid_points(
+        self, image_array: np.ndarray, angle=0
+    ) -> Iterator[tuple[float, float]]:
         """Yield center positions for dot placement."""
         raise NotImplementedError
 
@@ -81,10 +82,11 @@ class ScreenBase(ABC):
 class AMScreen(ScreenBase):
     """Uniform cell grid."""
 
-    def _iter_grid_points(self, image, angle=0):
-        width, height = image.size
+    def _iter_grid_points(
+        self, image_array: np.ndarray, angle=0
+    ) -> Iterator[tuple[float, float]]:
+        height, width = image_array.shape[:2]
         angle_rad = math.radians(angle)
-
         cos_a = math.cos(angle_rad)
         sin_a = math.sin(angle_rad)
 
@@ -136,81 +138,73 @@ class AMScreen(ScreenBase):
 class DitherScreen(ScreenBase):
     """Floyd-Steinberg dithered cell grid."""
 
-    def _iter_grid_points(self, image, angle=0) -> Iterator[tuple[float, float]]:
+    def _iter_grid_points(
+        self, image_array: np.ndarray, angle=0
+    ) -> Iterator[tuple[float, float]]:
         spacing = int(self.spacing)
-        w, h = image.size
+        height, width = image_array.shape[:2]
         theta = math.radians(angle)
 
-        # Rotate image for screen screen angle
-        rotated = image.rotate(angle, resample=Image.Resampling.BICUBIC, expand=True)
-        rw, rh = rotated.size
+        # Convert to grayscale if needed
+        if image_array.ndim == 3:
+            arr = np.mean(image_array, axis=2).astype(np.float32) / 255.0
+        else:
+            arr = image_array.astype(np.float32) / 255.0
 
         # Downscale to dot grid size
-        small = rotated.resize(
-            (rw // spacing, rh // spacing),
-            resample=Image.Resampling.LANCZOS,
-        ).convert("L")
+        small_h = max(1, height // spacing)
+        small_w = max(1, width // spacing)
+        small = arr[::spacing, ::spacing]
+        out = np.zeros_like(small)
 
-        arr = np.array(small, dtype=np.float32) / 255.0
-        height, width = arr.shape
-        out = np.zeros_like(arr)
-
-        # Apply Floyd-Steinberg Dithering
-        for y in range(height):
-            for x in range(width):
-                old_pixel = arr[y, x]
+        # Floyd-Steinberg dithering
+        h_s, w_s = small.shape
+        for y in range(h_s):
+            for x in range(w_s):
+                old_pixel = small[y, x]
                 new_pixel = 1.0 if old_pixel >= 0.5 else 0.0
                 out[y, x] = new_pixel
                 error = old_pixel - new_pixel
 
-                if x + 1 < width:
-                    arr[y, x + 1] += error * 7 / 16
-                if x - 1 >= 0 and y + 1 < height:
-                    arr[y + 1, x - 1] += error * 3 / 16
-                if y + 1 < height:
-                    arr[y + 1, x] += error * 5 / 16
-                if x + 1 < width and y + 1 < height:
-                    arr[y + 1, x + 1] += error * 1 / 16
+                if x + 1 < w_s:
+                    small[y, x + 1] += error * 7 / 16
+                if x - 1 >= 0 and y + 1 < h_s:
+                    small[y + 1, x - 1] += error * 3 / 16
+                if y + 1 < h_s:
+                    small[y + 1, x] += error * 5 / 16
+                if x + 1 < w_s and y + 1 < h_s:
+                    small[y + 1, x + 1] += error * 1 / 16
 
-        # Yield positions for dots, rotating back to original image space
+        # Yield positions
         cos_theta = math.cos(theta)
         sin_theta = math.sin(theta)
+        cx, cy = width / 2, height / 2
+        scx, scy = small_w / 2, small_h / 2
 
-        # Center of the rotated image
-        rcx = rw / 2
-        rcy = rh / 2
-
-        # Center of original image (for inverse mapping)
-        ocx = w / 2
-        ocy = h / 2
-
-        for j in range(height):
-            for i in range(width):
+        for j in range(h_s):
+            for i in range(w_s):
                 if out[j, i] >= 1.0:
-                    # Position in rotated space
                     rx = (i + 0.5) * spacing
                     ry = (j + 0.5) * spacing
 
-                    # Rotate back to original image space
-                    dx = rx - rcx
-                    dy = ry - rcy
-                    ox = dx * cos_theta - dy * sin_theta + ocx
-                    oy = dx * sin_theta + dy * cos_theta + ocy
+                    dx = rx - scx * spacing
+                    dy = ry - scy * spacing
 
-                    yield (ox, oy)
+                    ox = dx * cos_theta - dy * sin_theta + cx
+                    oy = dx * sin_theta + dy * cos_theta + cy
+
+                    yield ox, oy
 
 
 @MODULE_REGISTRY.register("threshold", spec_cls=ScreenSpec)
 class ThresholdScreen(ScreenBase):
     """Threshold-based screen."""
 
-    def _iter_grid_points(self, image, angle=0) -> Iterator[tuple[float, float]]:
-        grayscale = image.convert("L")
-        pixels = np.array(grayscale)
+    def _iter_grid_points(
+        self, image_array: np.ndarray, angle=0
+    ) -> Iterator[tuple[float, float]]:
 
-        height, width = pixels.shape
-
-        for y in range(height):
-            for x in range(width):
-                if pixels[y, x] > 127:
-                    yield float(x), float(y)
+        ys, xs = np.nonzero(image_array > 127)
+        # Yield as floats
+        for x, y in zip(xs, ys):
+            yield float(x), float(y)

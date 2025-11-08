@@ -56,49 +56,58 @@ class SplitBase(ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(spec={repr(self.spec)})"
 
-    def _ensure_mode(self, image, mode):
+    def _ensure_mode(self, image: Image.Image, mode: str):
         if image.mode.upper() != mode:
             image = image.convert(mode)
         return image
 
     @abstractmethod
-    def split(self, image):
+    def split(self, image: Image.Image):
         pass
 
 
 @MODULE_REGISTRY.register("process", "cmyk", spec_cls=ProcessSplitSpec)
 class ProcessSplit(SplitBase):
-    def split(self, image):
+    def split(self, image: Image.Image):
         """Split CMYK image into C, M, Y, K channels."""
 
         self.spec.tones = ((0, 255, 255), (255, 0, 255), (255, 255, 0), (0, 0, 0))
         image = self._ensure_mode(image, "CMYK")
         c, m, y, k = image.split()
-        return {"C": c, "M": m, "Y": y, "K": k}
+        return {
+            "C": np.array(c, dtype=np.uint8),
+            "M": np.array(m, dtype=np.uint8),
+            "Y": np.array(y, dtype=np.uint8),
+            "K": np.array(k, dtype=np.uint8),
+        }
 
 
 @MODULE_REGISTRY.register("rgb", spec_cls=RGBSplitSpec)
 class RGBSplit(SplitBase):
-    def split(self, image):
+    def split(self, image: Image.Image):
         """Split image into R, G, B channels."""
 
         self.spec.tones = ((255, 0, 0), (0, 255, 0), (0, 0, 255))
         image = self._ensure_mode(image, "RGB")
         r, g, b = image.split()
-        return {"R": r, "G": g, "B": b}
+        return {
+            "R": np.array(r, dtype=np.uint8),
+            "G": np.array(g, dtype=np.uint8),
+            "B": np.array(b, dtype=np.uint8),
+        }
 
 
 @MODULE_REGISTRY.register(
     "gray", "grey", "grayscale", "greyscale", "l", spec_cls=LSplitSpec
 )
 class LSplit(SplitBase):
-    def split(self, image):
+    def split(self, image: Image):
         """Return grayscale image."""
 
-        self.spec.tones = None
+        self.spec.tones = (0, 0, 0)
         image = self._ensure_mode(image, "L")
         l = ImageOps.invert(image)
-        return {"L": l}
+        return {"L": np.array(l, dtype=np.uint8)}
 
 
 @MODULE_REGISTRY.register(
@@ -110,7 +119,7 @@ class LSplit(SplitBase):
     spec_cls=SimProcessSplitSpec,
 )
 class SimProcessSplit(SplitBase):
-    def split(self, image):
+    def split(self, image: Image.Image):
         """Simulate spot color separation using color distance,
         optionally accounting for a substrate color."""
 
@@ -118,73 +127,57 @@ class SimProcessSplit(SplitBase):
         rgb_image = self._ensure_mode(image, "RGB")
         img_array = np.array(rgb_image).astype(np.float32)  # shape: (H, W, 3)
 
-        # Optional substrate color
+        # Optional substrate
+        substrate_mask = None
         if self.spec.substrate is not None:
-            substrate_array = (
-                np.array(self.spec.substrate).astype(np.float32).reshape((1, 1, 3))
+            substrate_array = np.array(self.spec.substrate, dtype=np.float32).reshape(
+                (1, 1, 3)
             )
             substrate_dist = np.linalg.norm(img_array - substrate_array, axis=2)
-            substrate_dist = substrate_dist / np.sqrt(
-                3 * (255**2)
-            )  # Normalize to [0,1]
-            substrate_mask = substrate_dist.clip(
-                0, 1
-            )  # Closer to substrate => lower value
-        else:
-            substrate_mask = None
+            substrate_mask = substrate_dist / np.sqrt(3 * (255**2))
+            substrate_mask = substrate_mask.clip(0, 1)
 
         separations = {}
 
-        for name, tone_rgb in self.spec.tones.items():
-            # Tone distance
-            tone_array = np.array(tone_rgb).astype(np.float32).reshape((1, 1, 3))
+        for tone in self.spec.tones:
+            tone_array = np.array(tone, dtype=np.float32).reshape((1, 1, 3))
             tone_dist = np.linalg.norm(img_array - tone_array, axis=2)
-            tone_dist = 1 - (tone_dist / np.sqrt(3 * (255**2)))  # Closer => more ink
-            tone_mask = tone_dist.clip(0, 1)
+            tone_mask = (1 - tone_dist / np.sqrt(3 * (255**2))).clip(0, 1)
 
             if substrate_mask is not None:
-                # Reduce ink where substrate already contributes
-                tone_mask *= substrate_mask  # Avoid printing over substrate
+                tone_mask *= substrate_mask
 
-            # Scale to 8-bit grayscale
-            mask = (tone_mask * 255).astype(np.uint8)
-            separations[name] = Image.fromarray(mask, mode="L")
+            # Convert tone list to tuple so it’s hashable
+            separations[tuple(tone)] = (tone_mask * 255).astype(np.uint8)
 
         return separations
 
 
 @MODULE_REGISTRY.register("spot", spec_cls=SpotSplitSpec)
 class SpotSplit(SplitBase):
-    def split(self, image):
+    def split(self, image: Image.Image):
         """Split image into spot color channels based on color similarity (within threshold),
         optionally avoiding substrate-colored regions."""
 
         rgb_image = self._ensure_mode(image, "RGB")
         img_array = np.array(rgb_image).astype(np.int16)
 
-        separations = {}
-
-        # Compute distance to substrate if provided
+        substrate_dist = None
         if self.spec.substrate is not None:
-            substrate_array = (
-                np.array(self.spec.substrate).reshape((1, 1, 3)).astype(np.int16)
+            substrate_array = np.array(self.spec.substrate, dtype=np.int16).reshape(
+                (1, 1, 3)
             )
             substrate_dist = np.linalg.norm(img_array - substrate_array, axis=2)
-        else:
-            substrate_dist = None
 
-        for name, color in self.spec.tones.items():
-            color_array = np.array(color).reshape((1, 1, 3)).astype(np.int16)
-            color_dist = np.linalg.norm(img_array - color_array, axis=2)
+        separations = {}
+        for tone in self.spec.tones:
+            tone_array = np.array(tone, dtype=np.int16).reshape((1, 1, 3))
+            tone_dist = np.linalg.norm(img_array - tone_array, axis=2)
 
-            # Initial match: within threshold to spot color
-            mask = color_dist <= self.spec.threshold
-
+            mask = tone_dist <= self.spec.threshold
             if substrate_dist is not None:
-                # Also require that pixel is not too close to the substrate
                 mask &= substrate_dist > self.spec.threshold
 
-            # Convert boolean mask to binary image
-            separations[name] = Image.fromarray(mask.astype(np.uint8) * 255, mode="L")
+            separations[tuple(tone)] = mask.astype(np.uint8) * 255
 
         return separations

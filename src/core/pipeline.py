@@ -62,14 +62,21 @@ class Pipeline:
             return None
 
         try:
-            width, height = separations[0].halftone.size
-            image_array = np.full((height, width, 3), substrate, dtype=np.uint8)
+            height, width = separations[0].halftone.shape
+            image_array = (
+                np.full((height, width, 3), substrate, dtype=np.float32) / 255.0
+            )
 
             for separation in separations:
-                arr = np.array(separation.halftone)
-                mask = arr == 0
-                image_array[mask] = separation.tone
+                halftone = separation.halftone.astype(np.float32)
+                mask = 1.0 - (halftone / 255.0)
+                mask = mask[..., np.newaxis]
 
-            return Image.fromarray(image_array)
+                tone = np.array(separation.tone, dtype=np.float32) / 255.0
+
+                image_array = image_array * (1 - mask * (1 - tone))
+
+            return Image.fromarray(np.clip(image_array * 255, 0, 255).astype(np.uint8))
+
         except Exception as e:
             raise RuntimeError(f"Pipeline preview generation failed: {e}") from e

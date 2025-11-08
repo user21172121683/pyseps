@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageOps, ImageFilter
+import cairo
 
 from .dot import DotBase
 
@@ -17,56 +17,72 @@ class Halftone:
     def render(
         self,
         intensity_map: list[tuple[float, float, float]],
-        base_image: Image.Image,
+        base_image: np.ndarray,
         ppi: int,
         dpi: int,
         angle: float,
-    ) -> Image.Image:
-        """Render a halftone pattern from intensity data."""
+    ) -> np.ndarray:
+        """
+        Render a halftone pattern from intensity data.
+        """
 
         scale = dpi / ppi
+        base_image = self._resize(base_image, dpi, ppi)
+        height, width = base_image.shape
 
-        scaled_base = self._resize_to_dpi(base_image, dpi, ppi)
-        image_size = scaled_base.size
+        # Create Cairo image surface
+        surface = cairo.ImageSurface(cairo.FORMAT_RGB24, width, height)
+        ctx = cairo.Context(surface)
 
-        mode = "L" if self.hardmix else "1"
-        result = Image.new(mode, image_size, "white")
-        canvas = ImageDraw.Draw(result)
+        # Fill background white
+        ctx.set_source_rgb(1, 1, 1)
+        ctx.paint()
 
+        # Draw dots
         for x, y, intensity in intensity_map:
             self.dot.draw(
-                canvas=canvas,
+                ctx=ctx,
                 center=(x * scale, y * scale),
                 size=self.spacing * scale,
                 angle=angle,
                 intensity=intensity,
             )
 
+        # Convert Cairo RGB surface to NumPy grayscale
+        buf = surface.get_data()
+        screen_image = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 4))
+
+        screen_gray = screen_image[:, :, 0]
+
         if self.hardmix:
-            result = self._hardmix(scaled_base, result)
+            screen_gray = self._hardmix(base_image, screen_gray)
+
+        return screen_gray
+
+    def _hardmix(self, base_image: np.ndarray, screen_gray: np.ndarray) -> np.ndarray:
+        """
+        Apply hardmix blending of the halftone over the base grayscale image.
+        """
+        # Invert the base image
+        inverted_base = 255 - base_image.astype(int)
+
+        # Combine with the halftone
+        combined = inverted_base + screen_gray.astype(int)
+
+        # Apply hardmix threshold
+        result = np.where(combined < 255, 0, 255).astype(np.uint8)
 
         return result
 
-    def _resize_to_dpi(self, image: Image.Image, dpi: int, ppi: int) -> Image.Image:
-        """Resize the input image to match the screen DPI."""
-
-        ppi = image.info.get("dpi")[0] or ppi
+    def _resize(self, image: np.ndarray, dpi: int, ppi: int) -> np.ndarray:
+        """Resize the NumPy image array to match the screen DPI (nearest-neighbor)."""
         if ppi != dpi:
             scale = dpi / ppi
-            new_size = tuple(int(dim * scale) for dim in image.size)
-            resized = image.resize(new_size, resample=Image.Resampling.LANCZOS)
-            resized.info["dpi"] = (dpi, dpi)
+            new_height = max(1, int(image.shape[0] * scale))
+            new_width = max(1, int(image.shape[1] * scale))
+            # Nearest-neighbor resizing
+            y_indices = (np.arange(new_height) / scale).astype(int)
+            x_indices = (np.arange(new_width) / scale).astype(int)
+            resized = image[y_indices[:, None], x_indices]
             return resized
         return image
-
-    def _hardmix(
-        self, base_image: Image.Image, screen_image: Image.Image
-    ) -> Image.Image:
-        base_array = np.array(ImageOps.invert(base_image.convert("L")), dtype=np.uint16)
-        mask_array = np.array(
-            screen_image.filter(ImageFilter.GaussianBlur(radius=self.spacing / 10)),
-            dtype=np.uint16,
-        )
-        combined = base_array + mask_array
-        result_array = np.where(combined >= 255, 255, 0).astype(np.uint8)
-        return Image.fromarray(result_array, mode="L").convert("1")

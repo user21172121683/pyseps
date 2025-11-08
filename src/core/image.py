@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PIL import Image
+import numpy as np
 
 from constants import Globals, Defaults
 
@@ -11,9 +12,9 @@ from constants import Globals, Defaults
 @dataclass
 class Separation:
     name: str
-    split: Image.Image
+    split: np.ndarray
     screen: list[tuple[float, float, float]]
-    halftone: Image.Image
+    halftone: np.ndarray
     angle: int
     tone: tuple[int, int, int]
 
@@ -66,7 +67,7 @@ class ImageManager:
             if splits:
                 split_dir = output_dir / "splits" if use_subfolders else output_dir
                 split_dir.mkdir(parents=True, exist_ok=True)
-                separation.split.save(
+                Image.fromarray(separation.split).convert("L").save(
                     split_dir / f"{separation.name}.{fmt}",
                     dpi=(dpi, dpi),
                     **dict(options["L"].items()),
@@ -77,7 +78,7 @@ class ImageManager:
                     output_dir / "halftones" if use_subfolders else output_dir
                 )
                 halftone_dir.mkdir(parents=True, exist_ok=True)
-                separation.halftone.save(
+                Image.fromarray(separation.halftone).convert("1").save(
                     halftone_dir / f"{separation.name}.{fmt}",
                     dpi=(dpi, dpi),
                     **dict(options["1"].items()),
