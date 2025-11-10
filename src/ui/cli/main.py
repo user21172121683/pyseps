@@ -3,6 +3,7 @@
 import argparse
 from pathlib import Path
 import logging
+import glob
 
 from constants import Globals, Defaults
 from core import Seps
@@ -19,7 +20,9 @@ class AppCLI:
         self._setup_arguments()
 
     def _setup_arguments(self):
-        self.parser.add_argument("file", help="Input file")
+        self.parser.add_argument(
+            "files", nargs="+", help="Input file(s) or wildcard pattern(s)"
+        )
         log_group = self.parser.add_argument_group(
             "Logging Verbosity", "Set module chattiness"
         )
@@ -81,45 +84,55 @@ class AppCLI:
             )
             return
 
-        seps = Seps()
-        input_file = Path(args.file).resolve()
-        logger.info("Loading file: %s", input_file)
-        seps.load(input_file)
-
-        # Determine template
-        if args.template:
-            template = Path(args.template)
-        else:
-            yaml_files = list(input_file.parent.glob("*.yaml")) + list(
-                input_file.parent.glob("*.yml")
-            )
-            if yaml_files:
-                template = yaml_files[0]
+        # Expand wildcards manually
+        expanded_files = []
+        for pattern in args.files:
+            matched = glob.glob(pattern, recursive=True)
+            if matched:
+                expanded_files.extend(matched)
             else:
-                template = Globals.TEMPLATE
+                logger.warning("No files matched pattern: %s", pattern)
 
-        logger.info("Using template: %s", template)
-
-        # Import template
-        try:
-            seps.import_template(template)
-        except Exception as e:
-            logger.error("Error importing template: %s", e)
+        if not expanded_files:
+            logger.error("No input files found.")
             return
 
-        # Generate separations
-        logger.info("Generating separations...")
-        seps.generate()
+        # Process each file
+        for file_path in expanded_files:
+            input_file = Path(file_path).resolve()
+            logger.info("Processing file: %s", input_file)
 
-        # Save outputs
-        logger.info("Saving outputs to %s", args.output)
-        try:
-            seps.save(
-                splits=args.splits,
-                halftones=args.halftones,
-                preview=args.preview,
-                fmt=args.format,
-                output_folder=Path(args.output),
-            )
-        except Exception as e:
-            logger.error("Error saving: %s", e)
+            seps = Seps()
+            try:
+                seps.load(input_file)
+            except Exception as e:
+                logger.error("Error loading %s: %s", input_file, e)
+                continue
+
+            # Determine template
+            if args.template:
+                template = Path(args.template)
+            else:
+                yaml_files = list(input_file.parent.glob("*.yaml")) + list(
+                    input_file.parent.glob("*.yml")
+                )
+                if yaml_files:
+                    template = yaml_files[0]
+                else:
+                    template = Globals.TEMPLATE
+
+            logger.info("Using template: %s", template)
+
+            try:
+                seps.import_template(template)
+                seps.generate()
+                seps.save(
+                    splits=args.splits,
+                    halftones=args.halftones,
+                    preview=args.preview,
+                    fmt=args.format,
+                    output_folder=Path(args.output),
+                )
+                logger.info("Finished processing %s", input_file)
+            except Exception as e:
+                logger.error("Error processing %s: %s", input_file, e)
