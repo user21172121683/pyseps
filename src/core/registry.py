@@ -4,6 +4,10 @@ from typing import Type, Callable
 from dataclasses import dataclass, field
 from abc import ABCMeta, ABC
 import inspect
+import logging
+
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -33,6 +37,7 @@ class ModuleRegistry:
                 self._aliases[alias] = cls
 
             # Index under ABCs
+            indexed_bases = []
             for base in inspect.getmro(cls)[1:]:
                 if base in (object, ABC):
                     continue
@@ -41,10 +46,20 @@ class ModuleRegistry:
                         self._classes[base] = []
                     if cls not in self._classes[base]:
                         self._classes[base].append(cls)
+                    indexed_bases.append(base.__name__)
 
-            # Store the associated spec class
+            # Store spec class
             if spec_cls is not None:
                 self._specs[cls] = spec_cls
+
+            # Single merged debug message
+            logger.debug(
+                "Registered class %s | aliases: %s%s | indexed under bases: %s",
+                cls.__name__,
+                ", ".join(all_aliases),
+                f" | spec class: {spec_cls.__name__}" if spec_cls else "",
+                ", ".join(indexed_bases) if indexed_bases else "None",
+            )
 
             return cls
 
@@ -54,6 +69,7 @@ class ModuleRegistry:
         cls = self._aliases.get(alias.lower())
         if cls is None:
             raise ValueError(f"Unknown module alias: '{alias}'")
+        logger.debug("Lookup for alias '%s': found %s", alias, cls.__name__)
         return cls
 
     def get_by_base(self, base_class: Type) -> list[Type]:
