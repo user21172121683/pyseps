@@ -2,6 +2,7 @@
 !.gitignore
 !**/.gitkeep
 !.pylintrc
+!.editorconfig
 __pycache__
 *.pyc
 *.egg-info
