@@ -13,7 +13,7 @@ from constants import Globals, Defaults
 class Separation:
     name: str
     split: np.ndarray
-    screen: list[tuple[float, float, float]]
+    screen: np.ndarray
     halftone: np.ndarray
     angle: int
     tone: tuple[int, int, int]

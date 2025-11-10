@@ -3,8 +3,6 @@
 from PIL import Image
 import numpy as np
 
-from modules import Halftone
-
 from .template import TemplateManager
 from .image import ImageManager, Separation
 
@@ -19,7 +17,7 @@ class Pipeline:
         # Internal modules
         self._split = None
         self._screen = None
-        self._halftone = None
+        self._dot = None
 
     def run(self):
         """Orchestrates the full pipeline."""
@@ -29,16 +27,11 @@ class Pipeline:
         self._render_preview()
 
     def _instantiate_modules(self):
-        """Create split, screen, and halftone instances from template specs."""
+        """Create split, screen, and dot instances from template specs."""
 
         self._split = self.template.split_type(self.template.split_spec)
         self._screen = self.template.screen_type(self.template.screen_spec)
-        dot = self.template.dot_type(self.template.dot_spec)
-        self._halftone = Halftone(
-            dot=dot,
-            hardmix=self._screen.spec.hardmix,
-            spacing=self._screen.spacing,
-        )
+        self._dot = self.template.dot_type(self.template.dot_spec, self.template.screen_spec)
 
     def _process_image(self):
         """Split the input image and compute screen and halftone for each separation."""
@@ -54,21 +47,20 @@ class Pipeline:
             tone = tones[i]
 
             # Compute screen
-            intensity_map = self._screen.compute_intensity_map(split_img, angle)
+            intensity_flow_array = self._screen.compute_intensity_flow_array(
+                split_img, angle
+            )
 
             # Compute halftone
-            halftone_img = self._halftone.render(
-                intensity_map=intensity_map,
+            halftone_img = self._dot.render(
+                intensity_flow_array=intensity_flow_array,
                 base_image=split_img,
-                angle=angle,
-                ppi=self._screen.spec.ppi,
-                dpi=self._screen.spec.dpi,
             )
 
             separation = Separation(
                 name=name,
                 split=split_img,
-                screen=intensity_map,
+                screen=intensity_flow_array,
                 halftone=halftone_img,
                 angle=angle,
                 tone=tone,

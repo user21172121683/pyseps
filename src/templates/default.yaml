@@ -13,9 +13,8 @@ screen:
     lpi: 55
     dpi: 1200
     ppi: 300
-    hardmix: false
 dot:
     type: RoundDot
-    gradient: false
     gain: 0.0
-    modulate: true
+    angle: grid
+    size: radius

@@ -2,5 +2,4 @@
 
 from .split import *
 from .screen import *
-from .halftone import *
 from .dot import *

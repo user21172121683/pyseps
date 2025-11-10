@@ -15,11 +15,10 @@ class ScreenSpec:
     lpi: int = 55
     dpi: int = 1200
     ppi: int | None = None
-    hardmix: bool = False
 
 
 class ScreenBase(ABC):
-    """Base screen."""
+    """Base screen with intensity and flow analysis."""
 
     def __init__(self, spec: ScreenSpec):
         self.spec = spec
@@ -28,27 +27,41 @@ class ScreenBase(ABC):
     def __repr__(self) -> str:
         return f"{self.__class__.__name__}(spec={repr(self.spec)})"
 
-    def compute_intensity_map(
-        self, image_array: np.ndarray, angle: float
-    ) -> list[tuple[float, float, float]]:
+    def compute_intensity_flow_array(
+        self, image_array: np.ndarray, angle: float = 0
+    ) -> np.ndarray:
         """
-        Compute intensity samples across the image.
-        Returns a list of (x, y, intensity) tuples.
+        Compute intensity and flow angles at sampled points.
+        Returns a single array of shape (num_points, 4):
+            [x, y, intensity, angle]
         """
 
         height, width = image_array.shape
-        intensity_map = []
+        data = []
 
         for x, y in self._iter_grid_points(image_array, angle):
             block = self._get_clipped_block(x, y, width, height, image_array)
             if block is None or block.size == 0:
                 continue
 
+            if block.shape[0] < 2 or block.shape[1] < 2:
+                continue
+
+            # Intensity
             avg = np.mean(block)
             intensity = max(0.0, min(1.0, float(avg) / 255.0))
-            intensity_map.append((x, y, intensity))
 
-        return intensity_map
+            # Gradient vector
+            gy, gx = np.gradient(block.astype(float))
+            gx_mean = np.mean(gx)
+            gy_mean = np.mean(gy)
+
+            # Flow angle
+            angle = np.degrees(np.arctan2(gy_mean, gx_mean))
+
+            data.append([x, y, intensity, angle])
+
+        return np.array(data, dtype=float)
 
     def _get_clipped_block(
         self, x: float, y: float, width: int, height: int, pixels: np.ndarray
