@@ -4,9 +4,11 @@ import argparse
 from pathlib import Path
 import logging
 
-from log import setup_logging
 from constants import Globals, Defaults
 from core import Seps
+
+
+logger = logging.getLogger(__name__)
 
 
 class AppCLI:
@@ -70,12 +72,9 @@ class AppCLI:
 
     def run(self):
         args = self.parser.parse_args()
-        setup_logging(args.verbose, args.quiet)
         self.handle(args)
 
     def handle(self, args):
-        logger = logging.getLogger(__name__)
-
         if not (args.splits or args.halftones or args.preview):
             logger.warning(
                 "You should enable at least -S/--splits, -H/--halftones, or -P/--preview."
